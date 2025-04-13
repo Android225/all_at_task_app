@@ -26,12 +26,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _login() {
     setState(() {
-      // Проверяем, если поле пустое, показываем ошибку
       _emailError = _emailController.text.isEmpty ? 'Введите данные в поле' : null;
       _passwordError = _passwordController.text.isEmpty ? 'Введите данные в поле' : null;
     });
 
-    // Если ошибок нет, выполняем вход
     if (_emailError == null && _passwordError == null) {
       final email = _emailController.text;
       final password = _passwordController.text;
@@ -47,68 +45,42 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 32),
-              Text(
-                'all_at_task',
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleLarge?.copyWith(
-                  color: AppTheme.primaryColor,
-                ),
+              const Text(
+                'all-at_task',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 48),
-
-              // Email field
+              const SizedBox(height: 8),
+              const Text(
+                'Добро пожаловать!',
+                style: TextStyle(fontSize: 20, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              // 👉 Вот здесь картинка
+              Image.asset(
+                'assets/images/cat1.jpg',
+                height: 200,
+              ),
+              const SizedBox(height: 32),
               TextField(
                 controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
                 decoration: InputDecoration(
                   labelText: 'Email',
-                  errorText: _emailError, // Отображаем ошибку для email, если она есть
-                  border: const OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: AppTheme.primaryColor,
-                      width: 2.0, // Жирный контур
-                    ),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Colors.red,  // Красный контур при ошибке
-                      width: 2.0, // Жирный контур
-                    ),
-                  ),
+                  errorText: _emailError,
                 ),
               ),
-              const SizedBox(height: 20),
-
-              // Password field
+              const SizedBox(height: 16),
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
                 decoration: InputDecoration(
                   labelText: 'Пароль',
-                  errorText: _passwordError,  // Отображаем ошибку для пароля, если она есть
-                  border: const OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: AppTheme.primaryColor,
-                      width: 2.0, // Жирный контур
-                    ),
-                  ),
-                  errorBorder: OutlineInputBorder(
-                    borderSide: BorderSide(
-                      color: Colors.red,  // Красный контур при ошибке
-                      width: 2.0,  // Жирный контур
-                    ),
-                  ),
+                  errorText: _passwordError,
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                    ),
+                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
                     onPressed: () {
                       setState(() {
                         _obscurePassword = !_obscurePassword;
@@ -117,57 +89,48 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 10),
-
-              // Forgot password button
+              // Уменьшил отступ до "Забыли пароль?"
+              const SizedBox(height: 8),
+              // Текст "Забыли пароль?" перед кнопкой
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    // TODO: Переход на восстановление пароля
+                    // Реализовать переход на экран восстановления пароля
+                    // TODO: Переход к экрану восстановления пароля
                   },
                   child: Text(
                     'Забыли пароль?',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: AppTheme.primaryColor,
+                    style: TextStyle(
+                      color: theme.colorScheme.primary, // Используем цвет из схемы приложения
                     ),
                   ),
                 ),
               ),
-
-              const SizedBox(height: 32),
-
+              // Уменьшил отступ между "Забыли пароль?" и кнопкой "Войти"
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _login,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48), // Размер кнопки (ширина 100%, высота 48)
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'Войти',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text("Нет аккаунта?"),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SignupScreen()),
-                      );
-                    },
-                    child: const Text(
-                      "Зарегистрироваться",
-                      style: TextStyle(color: AppTheme.primaryColor),
-                    ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
                   ),
-                ],
+                  backgroundColor: theme.primaryColor, // Цвет фона кнопки
+                  foregroundColor: Colors.white, // Цвет текста кнопки
+                ),
+                child: const Text('Войти'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const SignupScreen()),
+                  );
+                },
+                child: const Text('Нет аккаунта? Зарегистрироваться'),
               ),
             ],
           ),
