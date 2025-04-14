@@ -72,7 +72,7 @@ class LoginScreen extends StatelessWidget {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешный вход!')),
                     );
-                    getIt<AppRouter>().pushNamed('/home'); // Используем pushNamed
+                    getIt<AppRouter>().pushNamed('/home');
                   } else if (state is AuthFailure) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),

@@ -1,5 +1,4 @@
 import 'package:all_at_task/data/services/service_locator.dart';
-import 'package:all_at_task/presentation/screens/auth/home_screen.dart';
 import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -8,9 +7,6 @@ import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/repositories/auth_repository.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
-import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
-import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
-
 import 'firebase_options.dart';
 
 void main() async {
@@ -36,19 +32,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appRouter = getIt<AppRouter>();
+
     return BlocProvider(
       create: (_) => AuthBloc(),
       child: MaterialApp(
         title: 'All At Task',
-        navigatorKey: getIt<AppRouter>().navigatorKey,
+        navigatorKey: appRouter.navigatorKey,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme,
         initialRoute: '/login',
-        routes: {
-          '/login': (context) => LoginScreen(),
-          '/signup': (context) => const SignUpScreen(),
-          '/home': (context) => const HomeScreen(),
-        },
+        onGenerateRoute: appRouter.onGenerateRoute,
       ),
     );
   }

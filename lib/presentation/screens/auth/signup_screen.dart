@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
+import 'package:all_at_task/router/app_router.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -67,7 +69,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: () => getIt<AppRouter>().pop(),
                   ),
                 ],
               ),
@@ -127,10 +129,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешная регистрация!')),
                     );
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => LoginScreen()),
-                    );
+                    getIt<AppRouter>().pushReplacement(LoginScreen());
                   } else if (state is AuthFailure) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
@@ -152,10 +151,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   const Text("У вас уже есть аккаунт? "),
                   TextButton(
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => LoginScreen()),
-                    ),
+                    onPressed: () => getIt<AppRouter>().push(LoginScreen()),
                     child: Text(
                       "Войти",
                       style: TextStyle(

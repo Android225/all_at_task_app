@@ -1,4 +1,7 @@
+import 'package:all_at_task/presentation/screens/auth/home_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
+import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
 
 class AppRouter {
   final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -33,5 +36,18 @@ class AppRouter {
       routeName,
       arguments: arguments,
     );
+  }
+
+  Route<dynamic>? onGenerateRoute(RouteSettings settings) {
+    switch (settings.name) {
+      case '/login':
+        return MaterialPageRoute(builder: (_) => LoginScreen());
+      case '/signup':
+        return MaterialPageRoute(builder: (_) => const SignUpScreen());
+      case '/home':
+        return MaterialPageRoute(builder: (_) => const HomeScreen());
+      default:
+        return MaterialPageRoute(builder: (_) => LoginScreen()); // Экран по умолчанию
+    }
   }
 }
