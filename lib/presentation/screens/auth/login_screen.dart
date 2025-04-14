@@ -35,15 +35,21 @@ class LoginScreen extends StatelessWidget {
               const SizedBox(height: 24),
               Image.asset('assets/images/cat1.jpg', height: 200),
               const SizedBox(height: 32),
-              _buildTextField(
+              TextField(
                 controller: _emailController,
-                label: 'Email',
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-              _buildTextField(
+              TextField(
                 controller: _passwordController,
-                label: 'Пароль',
+                decoration: const InputDecoration(
+                  labelText: 'Пароль',
+                  border: OutlineInputBorder(),
+                ),
                 obscureText: true,
               ),
               const SizedBox(height: 8),
@@ -60,22 +66,23 @@ class LoginScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              BlocBuilder<AuthBloc, AuthState>(
+              BlocConsumer<AuthBloc, AuthState>(
+                listener: (context, state) {
+                  if (state is AuthSuccess) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Успешный вход!')),
+                    );
+                    getIt<AppRouter>().pushNamed('/home'); // Используем pushNamed
+                  } else if (state is AuthFailure) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(state.message)),
+                    );
+                  }
+                },
                 builder: (context, state) {
                   if (state is AuthLoading) {
                     return const CircularProgressIndicator();
                   }
-
-                  if (state is AuthFailure) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        state.message,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-                    );
-                  }
-
                   return ElevatedButton(
                     onPressed: () {
                       final email = _emailController.text.trim();
@@ -109,23 +116,6 @@ class LoginScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    bool obscureText = false,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-      ),
-      obscureText: obscureText,
-      keyboardType: keyboardType,
     );
   }
 }

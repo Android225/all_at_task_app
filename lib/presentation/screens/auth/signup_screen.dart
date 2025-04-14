@@ -47,8 +47,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _passwordError = password.isEmpty ? 'Введите данные в поле' : null;
     });
 
-    if (_nameError == null && _emailError == null && _passwordError == null) {
-      context.read<AuthBloc>().add(SignUpRequested(name, email, password));
+    if (_nameError == null && _usernameError == null && _emailError == null && _passwordError == null) {
+      context.read<AuthBloc>().add(SignUpRequested(name, username, email, password));
     }
   }
 

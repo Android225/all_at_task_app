@@ -7,12 +7,7 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Главная')),
-      body: Center(
-        child: Text(
-          'Добро пожаловать!',
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-      ),
+      body: const Center(child: Text('Добро пожаловать!')),
     );
   }
 }
