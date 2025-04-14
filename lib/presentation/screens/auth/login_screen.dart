@@ -1,4 +1,6 @@
+import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
+import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 
@@ -125,10 +127,11 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SignupScreen()),
-                  );
+                 // Navigator.push(
+                 //   context,
+                 //   MaterialPageRoute(builder: (_) => const SignupScreen()),
+                 // );
+                  getIt<AppRouter>().push(const SignupScreen());
                 },
                 child: const Text('Нет аккаунта? Зарегистрироваться'),
               ),
