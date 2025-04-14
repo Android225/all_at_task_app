@@ -1,7 +1,5 @@
 import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
-import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
-import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
 import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -9,11 +7,10 @@ import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 
-class LoginScreen extends StatelessWidget {
+class ForgotPasswordScreen extends StatelessWidget {
   final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
 
-  LoginScreen({super.key});
+  ForgotPasswordScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +27,7 @@ class LoginScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Добро пожаловать!',
+                'Восстановление пароля',
                 style: TextStyle(fontSize: 20, color: Colors.grey),
               ),
               const SizedBox(height: 24),
@@ -44,37 +41,21 @@ class LoginScreen extends StatelessWidget {
                 ),
                 keyboardType: TextInputType.emailAddress,
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Пароль',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    getIt<AppRouter>().push(ForgotPasswordScreen());
-                  },
-                  child: Text(
-                    'Забыли пароль?',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
-                  ),
-                ),
+              const Text(
+                'Введите email, и мы отправим вам письмо для восстановления пароля.',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+                textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               BlocConsumer<AuthBloc, AuthState>(
                 listener: (context, state) {
-                  if (state is AuthSuccess) {
+                  if (state is ResetPasswordSuccess) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Успешный вход!')),
+                      const SnackBar(content: Text('Письмо для сброса пароля отправлено!')),
                     );
-                    getIt<AppRouter>().pushNamed('/home');
-                  } else if (state is AuthFailure) {
+                    getIt<AppRouter>().pop();
+                  } else if (state is ResetPasswordFailure) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
@@ -87,13 +68,12 @@ class LoginScreen extends StatelessWidget {
                   return ElevatedButton(
                     onPressed: () {
                       final email = _emailController.text.trim();
-                      final password = _passwordController.text.trim();
 
-                      if (email.isNotEmpty && password.isNotEmpty) {
-                        context.read<AuthBloc>().add(LogInRequested(email, password));
+                      if (email.isNotEmpty) {
+                        context.read<AuthBloc>().add(ResetPasswordRequested(email));
                       } else {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Заполните все поля')),
+                          const SnackBar(content: Text('Введите email')),
                         );
                       }
                     },
@@ -104,14 +84,14 @@ class LoginScreen extends StatelessWidget {
                       backgroundColor: Theme.of(context).primaryColor,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('Войти'),
+                    child: const Text('Отправить письмо'),
                   );
                 },
               ),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () => getIt<AppRouter>().push(const SignUpScreen()),
-                child: const Text('Нет аккаунта? Зарегистрироваться'),
+                onPressed: () => getIt<AppRouter>().pop(),
+                child: const Text('Вернуться к входу'),
               ),
             ],
           ),

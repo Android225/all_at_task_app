@@ -18,3 +18,9 @@ class LogInRequested extends AuthEvent {
 
   LogInRequested(this.email, this.password);
 }
+
+class ResetPasswordRequested extends AuthEvent {
+  final String email;
+
+  ResetPasswordRequested(this.email);
+}

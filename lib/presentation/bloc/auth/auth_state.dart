@@ -19,3 +19,11 @@ class AuthFailure extends AuthState {
 
   AuthFailure(this.message);
 }
+
+class ResetPasswordSuccess extends AuthState {}
+
+class ResetPasswordFailure extends AuthState {
+  final String message;
+
+  ResetPasswordFailure(this.message);
+}
