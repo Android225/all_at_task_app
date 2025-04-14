@@ -1,9 +1,8 @@
+import 'package:all_at_task/data/services/service_locator.dart';
+import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
+import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
-
+import 'package:all_at_task/config/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,61 +12,128 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  bool _obscurePassword = true;
+
+  String? _emailError;
+  String? _passwordError;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   void _login() {
-    final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
+    setState(() {
+      _emailError = _emailController.text.isEmpty ? 'Введите данные в поле' : null;
+      _passwordError = _passwordController.text.isEmpty ? 'Введите данные в поле' : null;
+    });
 
-    context.read<AuthBloc>().add(LogInRequested(email, password));
+    if (_emailError == null && _passwordError == null) {
+      final email = _emailController.text;
+      final password = _passwordController.text;
+      print('Email: $email, Password: $password');
+      // TODO: Реализация входа
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Вход')),
-      body: BlocConsumer<AuthBloc, AuthState>(
-        listener: (context, state) {
-          if (state is Authenticated) {
-            Navigator.pushReplacementNamed(context, '/home');
-          } else if (state is AuthError) {
-            ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(state.message)));
-          }
-        },
-        builder: (context, state) {
-          return Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                TextField(
-                  controller: _emailController,
-                  decoration: const InputDecoration(labelText: 'Email'),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Text(
+                'all-at_task',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Добро пожаловать!',
+                style: TextStyle(fontSize: 20, color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+              // 👉 Вот здесь картинка
+              Image.asset(
+                'assets/images/cat1.jpg', // Путь к картинке
+                height: 200,
+              ),
+              const SizedBox(height: 32),
+              TextField(
+                controller: _emailController,
+                decoration: InputDecoration(
+                  labelText: 'Email',
+                  errorText: _emailError,
                 ),
-                TextField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(labelText: 'Пароль'),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  labelText: 'Пароль',
+                  errorText: _passwordError,
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
                 ),
-                const SizedBox(height: 20),
-                state is AuthLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                  onPressed: _login,
-                  child: const Text('Войти'),
-                ),
-                TextButton(
+              ),
+              // Уменьшил отступ до "Забыли пароль?"
+              const SizedBox(height: 8),
+              // Текст "Забыли пароль?" перед кнопкой
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
                   onPressed: () {
-                    Navigator.pushNamed(context, '/signup');
+                    // Реализовать переход на экран восстановления пароля
+                    // TODO: Переход к экрану восстановления пароля
                   },
-                  child: const Text('Нет аккаунта? Зарегистрироваться'),
+                  child: Text(
+                    'Забыли пароль?',
+                    style: TextStyle(
+                      color: theme.colorScheme.primary, // Используем цвет из схемы приложения
+                    ),
+                  ),
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+              // Уменьшил отступ между "Забыли пароль?" и кнопкой "Войти"
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _login,
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 48), // Размер кнопки (ширина 100%, высота 48)
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  backgroundColor: theme.primaryColor, // Цвет фона кнопки
+                  foregroundColor: Colors.white, // Цвет текста кнопки
+                ),
+                child: const Text('Войти'),
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  getIt<AppRouter>().push(const SignUpScreen());
+                },
+                child: const Text('Нет аккаунта? Зарегистрироваться'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
