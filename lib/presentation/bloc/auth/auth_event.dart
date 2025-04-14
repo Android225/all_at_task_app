@@ -1,3 +1,6 @@
+import 'package:meta/meta.dart';
+
+@immutable
 abstract class AuthEvent {}
 
 class SignUpRequested extends AuthEvent {
@@ -14,5 +17,3 @@ class LogInRequested extends AuthEvent {
 
   LogInRequested(this.email, this.password);
 }
-
-class LogOutRequested extends AuthEvent {}

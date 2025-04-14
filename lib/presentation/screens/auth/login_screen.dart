@@ -1,53 +1,25 @@
 import 'package:all_at_task/data/services/service_locator.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
 import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class LoginScreen extends StatelessWidget {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-  @override
-  State<LoginScreen> createState() => _LoginScreenState();
-}
-
-class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
-  bool _obscurePassword = true;
-
-  String? _emailError;
-  String? _passwordError;
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
-  }
-
-  void _login() {
-    setState(() {
-      _emailError = _emailController.text.isEmpty ? 'Введите данные в поле' : null;
-      _passwordError = _passwordController.text.isEmpty ? 'Введите данные в поле' : null;
-    });
-
-    if (_emailError == null && _passwordError == null) {
-      final email = _emailController.text;
-      final password = _passwordController.text;
-      print('Email: $email, Password: $password');
-      // TODO: Реализация входа
-    }
-  }
+  LoginScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -61,80 +33,99 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: TextStyle(fontSize: 20, color: Colors.grey),
               ),
               const SizedBox(height: 24),
-              // 👉 Вот здесь картинка
-              Image.asset(
-                'assets/images/cat1.jpg', // Путь к картинке
-                height: 200,
-              ),
+              Image.asset('assets/images/cat1.jpg', height: 200),
               const SizedBox(height: 32),
-              TextField(
+              _buildTextField(
                 controller: _emailController,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  errorText: _emailError,
-                ),
+                label: 'Email',
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-              TextField(
+              _buildTextField(
                 controller: _passwordController,
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Пароль',
-                  errorText: _passwordError,
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
-                  ),
-                ),
+                label: 'Пароль',
+                obscureText: true,
               ),
-              // Уменьшил отступ до "Забыли пароль?"
               const SizedBox(height: 8),
-              // Текст "Забыли пароль?" перед кнопкой
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () {
-                    // Реализовать переход на экран восстановления пароля
-                    // TODO: Переход к экрану восстановления пароля
+                    // TODO: Реализовать восстановление пароля
                   },
                   child: Text(
                     'Забыли пароль?',
-                    style: TextStyle(
-                      color: theme.colorScheme.primary, // Используем цвет из схемы приложения
-                    ),
+                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
                   ),
                 ),
               ),
-              // Уменьшил отступ между "Забыли пароль?" и кнопкой "Войти"
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _login,
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48), // Размер кнопки (ширина 100%, высота 48)
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  backgroundColor: theme.primaryColor, // Цвет фона кнопки
-                  foregroundColor: Colors.white, // Цвет текста кнопки
-                ),
-                child: const Text('Войти'),
+              BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, state) {
+                  if (state is AuthLoading) {
+                    return const CircularProgressIndicator();
+                  }
+
+                  if (state is AuthFailure) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Text(
+                        state.message,
+                        style: const TextStyle(color: Colors.red),
+                      ),
+                    );
+                  }
+
+                  return ElevatedButton(
+                    onPressed: () {
+                      final email = _emailController.text.trim();
+                      final password = _passwordController.text.trim();
+
+                      if (email.isNotEmpty && password.isNotEmpty) {
+                        context.read<AuthBloc>().add(LogInRequested(email, password));
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Заполните все поля')),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 48),
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Войти'),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               TextButton(
-                onPressed: () {
-                  getIt<AppRouter>().push(const SignUpScreen());
-                },
+                onPressed: () => getIt<AppRouter>().push(const SignUpScreen()),
                 child: const Text('Нет аккаунта? Зарегистрироваться'),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
+      obscureText: obscureText,
+      keyboardType: keyboardType,
     );
   }
 }

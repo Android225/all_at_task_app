@@ -10,14 +10,12 @@ import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
 import 'firebase_options.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();  // Убедитесь, что все инициализируется
-  await setupServiceLocator();  // Регистрация всех зависимостей
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);  // Инициализация Firebase
+  WidgetsFlutterBinding.ensureInitialized();
+  await setupServiceLocator();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Инициализация репозитория аутентификации
   final authRepository = AuthRepository();
 
-  // Запуск приложения с переданным репозиторием
   runApp(MyApp(authRepository: authRepository));
 }
 
@@ -29,13 +27,13 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => AuthBloc(authRepository),
+      create: (_) => AuthBloc(),
       child: MaterialApp(
         title: 'All At Task',
-        navigatorKey: getIt<AppRouter>().navigatorKey,  // Используем AppRouter из GetIt
+        navigatorKey: getIt<AppRouter>().navigatorKey,
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,  // Тема приложения
-        home: const LoginScreen(),  // Экран логина по умолчанию
+        theme: AppTheme.lightTheme,
+        home: LoginScreen(),
       ),
     );
   }

@@ -40,7 +40,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
-    // Проверка на ошибки
     setState(() {
       _nameError = name.isEmpty ? 'Введите данные в поле' : null;
       _usernameError = username.isEmpty ? 'Введите данные в поле' : null;
@@ -48,11 +47,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       _passwordError = password.isEmpty ? 'Введите данные в поле' : null;
     });
 
-    if (_nameError == null && _usernameError == null && _emailError == null && _passwordError == null) {
-      // Логируем информацию о регистрации
-      print('Регистрация пользователя: $name ($username) с email: $email');
-
-      // Передаем только необходимые данные для регистрации
+    if (_nameError == null && _emailError == null && _passwordError == null) {
       context.read<AuthBloc>().add(SignUpRequested(name, email, password));
     }
   }
@@ -72,9 +67,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -122,32 +115,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   labelText: 'Password',
                   errorText: _passwordError,
                   suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        _obscurePassword = !_obscurePassword;
-                      });
-                    },
+                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                   ),
                 ),
               ),
               const SizedBox(height: 24),
               BlocConsumer<AuthBloc, AuthState>(
                 listener: (context, state) {
-                  if (state is Authenticated) {
-                    // Уведомление о успешной регистрации
+                  if (state is AuthSuccess) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешная регистрация!')),
                     );
-
-                    // Переход на экран входа после успешной регистрации
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
+                      MaterialPageRoute(builder: (_) => LoginScreen()),
                     );
-                  } else if (state is AuthError) {
+                  } else if (state is AuthFailure) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
@@ -167,13 +151,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Text("У вас уже есть аккаунт? "),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      );
-                    },
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => LoginScreen()),
+                    ),
                     child: Text(
                       "Войти",
                       style: TextStyle(

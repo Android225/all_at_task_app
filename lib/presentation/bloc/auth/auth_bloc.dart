@@ -1,42 +1,43 @@
-import 'package:all_at_task/data/repositories/auth_repository.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
-import 'auth_event.dart';
-import 'auth_state.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
+import 'package:bloc/bloc.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:meta/meta.dart';
+
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
-  final AuthRepository authRepository;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  AuthBloc(this.authRepository) : super(AuthInitial()) {
+  AuthBloc() : super(AuthInitial()) {
     on<SignUpRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        final user = await authRepository.signUp(
-          name: event.name,
+        final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
           email: event.email,
           password: event.password,
         );
-        emit(Authenticated(user));
+        await userCredential.user?.updateDisplayName(event.name);
+        emit(AuthSuccess(userCredential.user));
+      } on FirebaseAuthException catch (e) {
+        emit(AuthFailure(e.message ?? 'Ошибка регистрации'));
       } catch (e) {
-        emit(AuthError(e.toString()));
+        emit(AuthFailure('Произошла ошибка: $e'));
       }
     });
 
     on<LogInRequested>((event, emit) async {
       emit(AuthLoading());
       try {
-        final user = await authRepository.logIn(
+        final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
           email: event.email,
           password: event.password,
         );
-        emit(Authenticated(user));
+        emit(AuthSuccess(userCredential.user));
+      } on FirebaseAuthException catch (e) {
+        emit(AuthFailure(e.message ?? 'Ошибка входа'));
       } catch (e) {
-        emit(AuthError(e.toString()));
+        emit(AuthFailure('Произошла ошибка: $e'));
       }
-    });
-
-    on<LogOutRequested>((event, emit) async {
-      await authRepository.logOut();
-      emit(AuthInitial());
     });
   }
 }

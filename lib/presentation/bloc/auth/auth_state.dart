@@ -1,19 +1,21 @@
-import 'package:all_at_task/data/models/user_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:meta/meta.dart';
 
+@immutable
 abstract class AuthState {}
 
 class AuthInitial extends AuthState {}
 
 class AuthLoading extends AuthState {}
 
-class Authenticated extends AuthState {
-  final UserModel user;
+class AuthSuccess extends AuthState {
+  final User? user;
 
-  Authenticated(this.user);
+  AuthSuccess(this.user);
 }
 
-class AuthError extends AuthState {
+class AuthFailure extends AuthState {
   final String message;
 
-  AuthError(this.message);
+  AuthFailure(this.message);
 }
