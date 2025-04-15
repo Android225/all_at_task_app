@@ -1,8 +1,7 @@
+import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
-import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/screens/home/home_screen.dart';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -14,47 +13,6 @@ class ListHomeScreen extends StatefulWidget {
 }
 
 class _ListHomeScreenState extends State<ListHomeScreen> {
-  void _showAddListBottomSheet(BuildContext context) {
-    final nameController = TextEditingController();
-    final listBloc = context.read<ListBloc>(); // Получаем ListBloc заранее
-
-    showModalBottomSheet(
-      context: context,
-      builder: (bottomSheetContext) {
-        return BlocProvider.value(
-          value: listBloc, // Передаём существующий ListBloc
-          child: Padding(
-            padding: const EdgeInsets.all(AppTheme.defaultPadding),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Новый список',
-                  style: Theme.of(bottomSheetContext).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Название списка'),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    if (nameController.text.isNotEmpty) {
-                      bottomSheetContext.read<ListBloc>().add(AddList(nameController.text));
-                      Navigator.pop(bottomSheetContext);
-                    }
-                  },
-                  child: const Text('Создать'),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
@@ -103,12 +61,53 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             return const Center(child: Text('Нет списков'));
           },
         ),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: AppTheme.primaryColor,
-          onPressed: () => _showAddListBottomSheet(context),
-          child: const Icon(Icons.add),
+        floatingActionButton: Builder(
+          builder: (fabContext) {
+            return FloatingActionButton(
+              backgroundColor: AppTheme.primaryColor,
+              onPressed: () => _showAddListBottomSheet(fabContext),
+              child: const Icon(Icons.add),
+            );
+          },
         ),
       ),
+    );
+  }
+
+  void _showAddListBottomSheet(BuildContext context) {
+    final nameController = TextEditingController();
+
+    showModalBottomSheet(
+      context: context,
+      builder: (bottomSheetContext) {
+        return Padding(
+          padding: const EdgeInsets.all(AppTheme.defaultPadding),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Новый список',
+                style: Theme.of(bottomSheetContext).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Название списка'),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  if (nameController.text.isNotEmpty) {
+                    context.read<ListBloc>().add(AddList(nameController.text));
+                    Navigator.pop(bottomSheetContext);
+                  }
+                },
+                child: const Text('Создать'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

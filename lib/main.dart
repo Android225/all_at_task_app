@@ -15,10 +15,10 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Инициализация Firebase App Check
-  await FirebaseAppCheck.instance.activate(
-    androidProvider: AndroidProvider.playIntegrity,
-    appleProvider: AppleProvider.deviceCheck,
-  );
+  // await FirebaseAppCheck.instance.activate(
+ //   androidProvider: AndroidProvider.playIntegrity,
+ //   appleProvider: AppleProvider.deviceCheck,
+ // );
 
   final authRepository = AuthRepository();
 

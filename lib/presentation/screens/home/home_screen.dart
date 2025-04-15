@@ -1,8 +1,10 @@
 import 'package:all_at_task/config/theme/app_theme.dart';
+import 'package:all_at_task/data/models/task.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
 import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -24,73 +26,86 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _showAddTaskBottomSheet(BuildContext context, String listId) {
+  void _showAddTaskBottomSheet(BuildContext scaffoldContext, String listId) {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
     DateTime? selectedDate;
+    String selectedPriority = 'medium';
 
     showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return Padding(
-              padding: const EdgeInsets.all(AppTheme.defaultPadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Новая задача',
-                    style: Theme.of(context).textTheme.titleLarge,
+      context: scaffoldContext,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+            left: AppTheme.defaultPadding,
+            right: AppTheme.defaultPadding,
+            top: AppTheme.defaultPadding,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Новая задача',
+                  style: Theme.of(bottomSheetContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: titleController,
+                  decoration: const InputDecoration(labelText: 'Название'),
+                ),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(labelText: 'Описание'),
+                ),
+                DropdownButtonFormField<String>(
+                  value: selectedPriority,
+                  decoration: const InputDecoration(labelText: 'Приоритет'),
+                  items: ['low', 'medium', 'high']
+                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                      .toList(),
+                  onChanged: (value) => setState(() => selectedPriority = value ?? 'medium'),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final date = await showDatePicker(
+                      context: bottomSheetContext,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (date != null) {
+                      setState(() => selectedDate = date);
+                    }
+                  },
+                  child: Text(
+                    selectedDate == null
+                        ? 'Выбрать дату'
+                        : DateFormat('dd.MM.yyyy').format(selectedDate!),
                   ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: titleController,
-                    decoration: const InputDecoration(labelText: 'Название'),
-                  ),
-                  TextField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(labelText: 'Описание'),
-                  ),
-                  TextButton(
-                    onPressed: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now(),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (date != null) {
-                        setModalState(() {
-                          selectedDate = date;
-                        });
-                      }
-                    },
-                    child: Text(
-                      selectedDate == null
-                          ? 'Выбрать дату'
-                          : DateFormat('dd.MM.yyyy').format(selectedDate!),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      if (titleController.text.isNotEmpty) {
-                        context.read<TaskBloc>().add(AddTask(
-                          titleController.text,
-                          descriptionController.text,
-                          selectedDate,
-                          listId,
-                        ));
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text('Создать'),
-                  ),
-                ],
-              ),
-            );
-          },
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    if (titleController.text.isNotEmpty) {
+                      scaffoldContext.read<TaskBloc>().add(AddTask(
+                        title: titleController.text,
+                        description: descriptionController.text,
+                        deadline: selectedDate,
+                        listId: listId,
+                        priority: selectedPriority,
+                      ));
+                      Navigator.pop(bottomSheetContext);
+                    }
+                  },
+                  child: const Text('Создать'),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
         );
       },
     );
@@ -229,13 +244,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                   onPressed: () async {
                                     final date = await showDatePicker(
                                       context: context,
-                                      initialDate: task.deadline ?? DateTime.now(),
+                                      initialDate: task.deadline?.toDate() ?? DateTime.now(),
                                       firstDate: DateTime.now(),
                                       lastDate: DateTime.now().add(const Duration(days: 365)),
                                     );
                                     if (date != null) {
                                       context.read<TaskBloc>().add(UpdateTask(
-                                        task.copyWith(deadline: date),
+                                        task.copyWith(
+                                          deadline: Timestamp.fromDate(date),
+                                        ),
                                       ));
                                     }
                                   },
@@ -276,12 +293,16 @@ class _HomeScreenState extends State<HomeScreen> {
                                       : null,
                                 ),
                               ),
-                              subtitle: Text(
-                                task.createdBy == state.userId ? 'Вы' : 'Другой',
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(task.createdBy == state.userId ? 'Вы' : 'Другой'),
+                                  if (task.priority != null) Text('Приоритет: ${task.priority}'),
+                                ],
                               ),
                               trailing: Text(
                                 task.deadline != null
-                                    ? DateFormat('dd.MM').format(task.deadline!)
+                                    ? DateFormat('dd.MM').format(task.deadline!.toDate())
                                     : '',
                               ),
                             ),

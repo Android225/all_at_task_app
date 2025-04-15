@@ -1,87 +1,107 @@
-class Task {
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:equatable/equatable.dart';
+import 'package:uuid/uuid.dart';
+
+class Task extends Equatable {
   final String id;
   final String title;
   final String? description;
-  final DateTime? deadline;
-  final bool isCompleted;
-  final String priority;
   final String listId;
-  final String assignedTo;
+  final Timestamp? deadline;
+  final String priority;
   final String createdBy;
+  final String? assignedTo;
+  final bool isCompleted;
   final bool isFavorite;
-  final DateTime createdAt;
+  final Timestamp createdAt;
 
   Task({
-    required this.id,
+    String? id,
     required this.title,
     this.description,
-    this.deadline,
-    this.isCompleted = false,
-    this.priority = 'medium',
     required this.listId,
-    required this.assignedTo,
+    this.deadline,
+    this.priority = 'medium',
     required this.createdBy,
+    this.assignedTo,
+    this.isCompleted = false,
     this.isFavorite = false,
-    required this.createdAt,
-  });
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'description': description,
-      'deadline': deadline?.toIso8601String(),
-      'isCompleted': isCompleted,
-      'priority': priority,
-      'listId': listId,
-      'assignedTo': assignedTo,
-      'createdBy': createdBy,
-      'isFavorite': isFavorite,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
+    Timestamp? createdAt,
+  })  : id = id ?? const Uuid().v4(),
+        createdAt = createdAt ?? Timestamp.now();
 
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
       id: map['id'],
       title: map['title'],
       description: map['description'],
-      deadline: map['deadline'] != null ? DateTime.parse(map['deadline']) : null,
-      isCompleted: map['isCompleted'] ?? false,
-      priority: map['priority'] ?? 'medium',
       listId: map['listId'],
-      assignedTo: map['assignedTo'],
+      deadline: map['deadline'],
+      priority: map['priority'] ?? 'medium',
       createdBy: map['createdBy'],
+      assignedTo: map['assignedTo'],
+      isCompleted: map['isCompleted'] ?? false,
       isFavorite: map['isFavorite'] ?? false,
-      createdAt: DateTime.parse(map['createdAt']),
+      createdAt: map['createdAt'],
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'listId': listId,
+      'deadline': deadline,
+      'priority': priority,
+      'createdBy': createdBy,
+      'assignedTo': assignedTo,
+      'isCompleted': isCompleted,
+      'isFavorite': isFavorite,
+      'createdAt': createdAt,
+    };
   }
 
   Task copyWith({
     String? id,
     String? title,
     String? description,
-    DateTime? deadline,
-    bool? isCompleted,
-    String? priority,
     String? listId,
-    String? assignedTo,
+    Timestamp? deadline,
+    String? priority,
     String? createdBy,
+    String? assignedTo,
+    bool? isCompleted,
     bool? isFavorite,
-    DateTime? createdAt,
+    Timestamp? createdAt,
   }) {
     return Task(
       id: id ?? this.id,
       title: title ?? this.title,
       description: description ?? this.description,
-      deadline: deadline ?? this.deadline,
-      isCompleted: isCompleted ?? this.isCompleted,
-      priority: priority ?? this.priority,
       listId: listId ?? this.listId,
-      assignedTo: assignedTo ?? this.assignedTo,
+      deadline: deadline ?? this.deadline,
+      priority: priority ?? this.priority,
       createdBy: createdBy ?? this.createdBy,
+      assignedTo: assignedTo ?? this.assignedTo,
+      isCompleted: isCompleted ?? this.isCompleted,
       isFavorite: isFavorite ?? this.isFavorite,
       createdAt: createdAt ?? this.createdAt,
     );
   }
+
+  @override
+  List<Object?> get props => [
+    id,
+    title,
+    description,
+    listId,
+    deadline,
+    priority,
+    createdBy,
+    assignedTo,
+    isCompleted,
+    isFavorite,
+    createdAt,
+  ];
 }

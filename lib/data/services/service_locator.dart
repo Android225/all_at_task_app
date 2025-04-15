@@ -1,4 +1,3 @@
-
 import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';

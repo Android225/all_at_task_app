@@ -1,8 +1,9 @@
-import 'package:all_at_task/data/models/task.dart';
 import 'package:bloc/bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:meta/meta.dart';
+import 'package:uuid/uuid.dart';
+import 'package:all_at_task/data/models/task.dart';
 
 part 'task_event.dart';
 part 'task_state.dart';
@@ -22,21 +23,14 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     emit(TaskLoading());
     try {
       final userId = _auth.currentUser!.uid;
-      final now = DateTime.now();
-      final tomorrow = now.add(const Duration(days: 1));
       final query = _firestore
           .collection('tasks')
-          .where('listId', isEqualTo: event.listId)
-          .where('deadline',
-          isGreaterThanOrEqualTo: now.toIso8601String(),
-          isLessThanOrEqualTo: tomorrow.toIso8601String());
-
+          .where('listId', isEqualTo: event.listId);
       final snapshot = await query.get();
       final tasks = snapshot.docs.map((doc) => Task.fromMap(doc.data())).toList();
-
       emit(TaskLoaded(tasks, userId));
     } catch (e) {
-      emit(TaskError('Ошибка загрузки задач: $e'));
+      emit(TaskError('Не удалось загрузить задачи: попробуйте позже'));
     }
   }
 
@@ -44,38 +38,37 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     try {
       final userId = _auth.currentUser!.uid;
       final task = Task(
-        id: _firestore.collection('tasks').doc().id,
+        id: const Uuid().v4(),
         title: event.title,
         description: event.description,
-        deadline: event.deadline,
         listId: event.listId,
-        assignedTo: userId,
+        deadline: event.deadline != null ? Timestamp.fromDate(event.deadline!) : null,
+        priority: event.priority,
         createdBy: userId,
-        createdAt: DateTime.now(),
+        assignedTo: userId,
       );
-
       await _firestore.collection('tasks').doc(task.id).set(task.toMap());
-      add(LoadTasks(event.listId)); // Перезагружаем задачи
+      add(LoadTasks(event.listId));
     } catch (e) {
-      emit(TaskError('Ошибка создания задачи: $e'));
+      emit(TaskError('Не удалось добавить задачу: попробуйте позже'));
     }
   }
 
   Future<void> _onUpdateTask(UpdateTask event, Emitter<TaskState> emit) async {
     try {
       await _firestore.collection('tasks').doc(event.task.id).update(event.task.toMap());
-      add(LoadTasks(event.task.listId)); // Перезагружаем задачи
+      add(LoadTasks(event.task.listId));
     } catch (e) {
-      emit(TaskError('Ошибка обновления задачи: $e'));
+      emit(TaskError('Не удалось обновить задачу: попробуйте позже'));
     }
   }
 
   Future<void> _onDeleteTask(DeleteTask event, Emitter<TaskState> emit) async {
     try {
       await _firestore.collection('tasks').doc(event.taskId).delete();
-      add(LoadTasks(event.listId)); // Перезагружаем задачи
+      add(LoadTasks(event.listId));
     } catch (e) {
-      emit(TaskError('Ошибка удаления задачи: $e'));
+      emit(TaskError('Не удалось удалить задачу: попробуйте позже'));
     }
   }
 }
