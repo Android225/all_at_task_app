@@ -2,6 +2,7 @@ import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
+import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -336,7 +337,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
             onTap: (index) {
               if (index == 0) {
-                // Заглушка для listhome_screen
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ListHomeScreen()),
+                );
               } else if (index == 1) {
                 final listId = (context.read<ListBloc>().state as ListLoaded?)?.selectedListId;
                 if (listId != null) {

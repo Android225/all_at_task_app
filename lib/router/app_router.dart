@@ -1,4 +1,5 @@
 import 'package:all_at_task/presentation/screens/home/home_screen.dart';
+import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
@@ -49,6 +50,8 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => ForgotPasswordScreen());
       case '/home':
         return MaterialPageRoute(builder: (_) => const HomeScreen());
+      case '/listhome':
+        return MaterialPageRoute(builder: (_) => const ListHomeScreen());
       default:
         return MaterialPageRoute(builder: (_) => LoginScreen());
     }

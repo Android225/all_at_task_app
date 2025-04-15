@@ -1,6 +1,5 @@
 part of 'list_bloc.dart';
 
-@immutable
 abstract class ListState {}
 
 class ListInitial extends ListState {}
@@ -9,7 +8,7 @@ class ListLoading extends ListState {}
 
 class ListLoaded extends ListState {
   final List<TaskList> lists;
-  final String selectedListId;
+  final String? selectedListId; // Изменили на String?
 
   ListLoaded(this.lists, this.selectedListId);
 }

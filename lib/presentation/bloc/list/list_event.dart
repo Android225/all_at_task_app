@@ -10,3 +10,15 @@ class SelectList extends ListEvent {
 
   SelectList(this.listId);
 }
+
+class AddList extends ListEvent {
+  final String name;
+
+  AddList(this.name);
+}
+
+class DeleteList extends ListEvent {
+  final String listId;
+
+  DeleteList(this.listId);
+}
