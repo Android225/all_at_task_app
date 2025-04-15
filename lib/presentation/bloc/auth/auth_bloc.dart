@@ -15,6 +15,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<LogInRequested>(_onLogInRequested);
     on<ResetPasswordRequested>(_onResetPasswordRequested);
     on<ResetAuthState>(_onResetAuthState);
+    on<LogOutRequested>(_onLogOutRequested);
   }
 
   Future<void> _onSignUpRequested(SignUpRequested event, Emitter<AuthState> emit) async {
@@ -71,5 +72,16 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
   void _onResetAuthState(ResetAuthState event, Emitter<AuthState> emit) {
     emit(AuthInitial());
+  }
+
+  Future<void> _onLogOutRequested(LogOutRequested event, Emitter<AuthState> emit) async {
+    // Заготовка для logout'а — реализуем позже
+    emit(AuthLoading());
+    try {
+      await _auth.signOut();
+      emit(AuthInitial());
+    } catch (e) {
+      emit(AuthFailure('Ошибка при выходе: $e'));
+    }
   }
 }
