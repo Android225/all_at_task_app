@@ -1,11 +1,14 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
+import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
+import 'package:all_at_task/presentation/widgets/app_text_field.dart';
+import 'package:all_at_task/presentation/widgets/auth_header.dart';
 import 'package:all_at_task/router/app_router.dart';
-import 'login_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:all_at_task/config/theme/app_theme.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 
 class SignUpScreen extends StatefulWidget {
   const SignUpScreen({super.key});
@@ -21,7 +24,6 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _passwordController = TextEditingController();
 
   bool _obscurePassword = true;
-
   String? _nameError;
   String? _usernameError;
   String? _emailError;
@@ -36,32 +38,44 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
-  void _signup() {
+  bool _isValidEmail(String email) {
+    final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    return emailRegex.hasMatch(email);
+  }
+
+  void _validateAndSignUp() {
     final name = _nameController.text.trim();
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
 
     setState(() {
-      _nameError = name.isEmpty ? 'Введите данные в поле' : null;
-      _usernameError = username.isEmpty ? 'Введите данные в поле' : null;
-      _emailError = email.isEmpty ? 'Введите данные в поле' : null;
-      _passwordError = password.isEmpty ? 'Введите данные в поле' : null;
+      _nameError = name.isEmpty ? 'Введите имя' : null;
+      _usernameError = username.isEmpty ? 'Введите имя пользователя' : null;
+      _emailError = email.isEmpty
+          ? 'Введите email'
+          : !_isValidEmail(email)
+          ? 'Введите корректный email'
+          : null;
+      _passwordError = password.isEmpty ? 'Введите пароль' : null;
     });
 
     if (_nameError == null && _usernameError == null && _emailError == null && _passwordError == null) {
-      context.read<AuthBloc>().add(SignUpRequested(name, username, email, password));
+      context.read<AuthBloc>().add(SignUpRequested(
+        name,
+        username,
+        email,
+        password,
+      ));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.defaultPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -73,74 +87,62 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              const Center(
-                child: Text(
-                  'Давайте создадим аккаунт',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 32),
-              TextField(
+              const AuthHeader(subtitle: 'Давайте создадим аккаунт'),
+              AppTextField(
                 controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'Name',
-                  errorText: _nameError,
-                ),
+                labelText: 'Name',
+                errorText: _nameError,
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppTextField(
                 controller: _usernameController,
-                decoration: InputDecoration(
-                  labelText: 'Username',
-                  errorText: _usernameError,
-                ),
+                labelText: 'Username',
+                errorText: _usernameError,
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppTextField(
                 controller: _emailController,
+                labelText: 'Email',
                 keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  labelText: 'Email',
-                  errorText: _emailError,
-                ),
+                errorText: _emailError,
               ),
               const SizedBox(height: 12),
-              TextField(
+              AppTextField(
                 controller: _passwordController,
+                labelText: 'Password',
                 obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  errorText: _passwordError,
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                    onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-                  ),
+                errorText: _passwordError,
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
               const SizedBox(height: 24),
               BlocConsumer<AuthBloc, AuthState>(
+                listenWhen: (previous, current) =>
+                current is AuthSuccess && current.isSignUp || current is AuthFailure,
                 listener: (context, state) {
-                  if (state is AuthSuccess) {
+                  if (state is AuthSuccess && state.isSignUp) {
+                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешная регистрация!')),
                     );
+                    context.read<AuthBloc>().add(ResetAuthState());
                     getIt<AppRouter>().pushReplacement(LoginScreen());
                   } else if (state is AuthFailure) {
+                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
                   }
                 },
+                buildWhen: (previous, current) =>
+                current is AuthLoading || current is AuthInitial,
                 builder: (context, state) {
                   return state is AuthLoading
                       ? const Center(child: CircularProgressIndicator())
                       : ElevatedButton(
-                    onPressed: _signup,
+                    onPressed: _validateAndSignUp,
                     child: const Text('Зарегистрироваться'),
                   );
                 },
@@ -149,16 +151,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("У вас уже есть аккаунт? "),
+                  const Text('У вас уже есть аккаунт? '),
                   TextButton(
                     onPressed: () => getIt<AppRouter>().push(LoginScreen()),
-                    child: Text(
-                      "Войти",
-                      style: TextStyle(
-                        color: theme.primaryColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: const Text('Войти'),
                   ),
                 ],
               ),

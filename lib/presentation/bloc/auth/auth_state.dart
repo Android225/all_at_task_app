@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:meta/meta.dart';
 
+
 @immutable
 abstract class AuthState {}
 
@@ -10,8 +11,9 @@ class AuthLoading extends AuthState {}
 
 class AuthSuccess extends AuthState {
   final User? user;
+  final bool isSignUp;
 
-  AuthSuccess(this.user);
+  AuthSuccess(this.user, {this.isSignUp = false});
 }
 
 class AuthFailure extends AuthState {

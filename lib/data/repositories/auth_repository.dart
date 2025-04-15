@@ -1,48 +1,57 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/user_model.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<UserModel> signUp({
+  Future<User?> signUp({
     required String name,
+    required String username,
     required String email,
     required String password,
   }) async {
-    UserCredential cred = await _auth.createUserWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
+    try {
+      final UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-    UserModel user = UserModel(
-      uid: cred.user!.uid,
-      name: name,
-      email: email,
-    );
+      await userCredential.user?.updateDisplayName(name);
 
-    await _firestore.collection('users').doc(user.uid).set(user.toMap());
+      await _firestore.collection('users').doc(userCredential.user?.uid).set({
+        'name': name,
+        'username': username,
+        'email': email,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-    return user;
+      return userCredential.user;
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  Future<UserModel> logIn({
+  Future<User?> login({
     required String email,
     required String password,
   }) async {
-    UserCredential cred = await _auth.signInWithEmailAndPassword(
-      email: email,
-      password: password,
-    );
-
-    DocumentSnapshot<Map<String, dynamic>> userDoc =
-    await _firestore.collection('users').doc(cred.user!.uid).get();
-
-    return UserModel.fromMap(userDoc.data()!);
+    try {
+      final UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      return userCredential.user;
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  Future<void> logOut() async {
-    await _auth.signOut();
+  Future<void> resetPassword({required String email}) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } catch (e) {
+      rethrow;
+    }
   }
 }

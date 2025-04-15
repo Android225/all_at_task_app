@@ -24,3 +24,4 @@ class ResetPasswordRequested extends AuthEvent {
 
   ResetPasswordRequested(this.email);
 }
+class ResetAuthState extends AuthEvent {}

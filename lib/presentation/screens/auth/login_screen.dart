@@ -1,109 +1,118 @@
 import 'package:all_at_task/data/services/service_locator.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
-import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
+import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
+import 'package:all_at_task/presentation/widgets/app_text_field.dart';
+import 'package:all_at_task/presentation/widgets/auth_header.dart';
 import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen extends StatefulWidget {
+  LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  LoginScreen({super.key});
+  String? _emailError;
+  String? _passwordError;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  bool _isValidEmail(String email) {
+    final RegExp emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    return emailRegex.hasMatch(email);
+  }
+
+  void _validateAndLogin() {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+
+    setState(() {
+      _emailError = email.isEmpty
+          ? 'Введите email'
+          : !_isValidEmail(email)
+          ? 'Введите корректный email'
+          : null;
+      _passwordError = password.isEmpty ? 'Введите пароль' : null;
+    });
+
+    if (_emailError == null && _passwordError == null) {
+      context.read<AuthBloc>().add(LogInRequested(email, password));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.defaultPadding),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
-                'all-at_task',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Добро пожаловать!',
-                style: TextStyle(fontSize: 20, color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-              Image.asset('assets/images/cat1.jpg', height: 200),
-              const SizedBox(height: 32),
-              TextField(
+              const AuthHeader(subtitle: 'Добро пожаловать!'),
+              AppTextField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  labelText: 'Email',
-                  border: OutlineInputBorder(),
-                ),
+                labelText: 'Email',
                 keyboardType: TextInputType.emailAddress,
+                errorText: _emailError,
               ),
               const SizedBox(height: 16),
-              TextField(
+              AppTextField(
                 controller: _passwordController,
-                decoration: const InputDecoration(
-                  labelText: 'Пароль',
-                  border: OutlineInputBorder(),
-                ),
+                labelText: 'Пароль',
                 obscureText: true,
+                errorText: _passwordError,
               ),
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    getIt<AppRouter>().push(ForgotPasswordScreen());
-                  },
-                  child: Text(
-                    'Забыли пароль?',
-                    style: TextStyle(color: Theme.of(context).colorScheme.primary),
-                  ),
+                  onPressed: () => getIt<AppRouter>().push(ForgotPasswordScreen()),
+                  child: const Text('Забыли пароль?'),
                 ),
               ),
               const SizedBox(height: 16),
               BlocConsumer<AuthBloc, AuthState>(
+                listenWhen: (previous, current) =>
+                current is AuthSuccess && !current.isSignUp || current is AuthFailure,
                 listener: (context, state) {
-                  if (state is AuthSuccess) {
+                  if (state is AuthSuccess && !state.isSignUp) {
+                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешный вход!')),
                     );
+                    context.read<AuthBloc>().add(ResetAuthState());
                     getIt<AppRouter>().pushNamed('/home');
                   } else if (state is AuthFailure) {
+                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
                   }
                 },
+                buildWhen: (previous, current) =>
+                current is AuthLoading || current is AuthInitial,
                 builder: (context, state) {
                   if (state is AuthLoading) {
                     return const CircularProgressIndicator();
                   }
                   return ElevatedButton(
-                    onPressed: () {
-                      final email = _emailController.text.trim();
-                      final password = _passwordController.text.trim();
-
-                      if (email.isNotEmpty && password.isNotEmpty) {
-                        context.read<AuthBloc>().add(LogInRequested(email, password));
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Заполните все поля')),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      minimumSize: const Size(double.infinity, 48),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      backgroundColor: Theme.of(context).primaryColor,
-                      foregroundColor: Colors.white,
-                    ),
+                    onPressed: _validateAndLogin,
                     child: const Text('Войти'),
                   );
                 },
