@@ -3,7 +3,7 @@ import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
 import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
-import 'package:all_at_task/presentation/screens/auth/home_screen.dart';
+import 'package:all_at_task/presentation/screens/home/home_screen.dart';
 import 'package:all_at_task/presentation/widgets/app_text_field.dart';
 import 'package:all_at_task/presentation/widgets/auth_header.dart';
 import 'package:all_at_task/router/app_router.dart';

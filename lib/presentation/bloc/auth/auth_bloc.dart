@@ -5,7 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:meta/meta.dart';
 
-
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -28,6 +27,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
 
       await userCredential.user?.updateDisplayName(event.name);
 
+      // Сохраняем данные пользователя
       await _firestore.collection('users').doc(userCredential.user?.uid).set({
         'name': event.name,
         'username': event.username,
@@ -35,9 +35,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // Создаём родительский список
+      try {
+        final parentListId = _firestore.collection('lists').doc().id;
+        await _firestore.collection('lists').doc(parentListId).set({
+          'id': parentListId,
+          'name': 'Основной',
+          'ownerId': userCredential.user?.uid,
+          'participants': [],
+          'roles': [],
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        // Откат: удаляем пользователя, если список не создался
+        await _auth.currentUser?.delete();
+        emit(AuthFailure('Не удалось создать основной список: $e'));
+        return;
+      }
+
       emit(AuthSuccess(userCredential.user, isSignUp: true));
     } on FirebaseAuthException catch (e) {
-      emit(AuthFailure(e.message ?? 'Ошибка регистрации'));
+      emit(AuthFailure(e.message ?? 'Ошибка при регистрации'));
     } catch (e) {
       emit(AuthFailure('Произошла ошибка: $e'));
     }
@@ -75,7 +93,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onLogOutRequested(LogOutRequested event, Emitter<AuthState> emit) async {
-    // Заготовка для logout'а — реализуем позже
     emit(AuthLoading());
     try {
       await _auth.signOut();

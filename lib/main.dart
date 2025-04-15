@@ -11,7 +11,7 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await setupServiceLocator();
+  setupServiceLocator(); // Убрали await, так как функция синхронная
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Инициализация Firebase App Check
