@@ -36,12 +36,12 @@ class ForgotPasswordScreen extends StatelessWidget {
               const SizedBox(height: 16),
               BlocConsumer<AuthBloc, AuthState>(
                 listener: (context, state) {
-                  if (state is AuthResetPasswordSuccess) {
+                  if (state is AuthMessage) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Письмо для сброса пароля отправлено!')),
+                      SnackBar(content: Text(state.message)),
                     );
                     getIt<AppRouter>().pop();
-                  } else if (state is AuthResetPasswordFailure) {
+                  } else if (state is AuthError) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );

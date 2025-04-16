@@ -100,7 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SnackBar(content: Text('Успешный вход!')),
                     );
                     getIt<AppRouter>().pushReplacement(const HomeScreen());
-                  } else if (state is AuthFailure) {
+                  } else if (state is AuthError) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );

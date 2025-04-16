@@ -75,6 +75,10 @@ class MyApp extends StatelessWidget {
             if (state is AuthSuccess) {
               return const HomeScreen();
             }
+            // После успешной регистрации показываем LoginScreen
+            if (state is AuthSignUpSuccess) {
+              return const LoginScreen();
+            }
             return const LoginScreen();
           },
         ),

@@ -118,12 +118,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
               const SizedBox(height: 24),
               BlocConsumer<AuthBloc, AuthState>(
                 listener: (context, state) {
-                  if (state is AuthSuccess) {
+                  if (state is AuthSignUpSuccess) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешная регистрация!')),
                     );
                     getIt<AppRouter>().pushReplacement(const LoginScreen());
-                  } else if (state is AuthFailure) {
+                  } else if (state is AuthError) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );

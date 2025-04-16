@@ -29,11 +29,22 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     emit(ListLoading());
     try {
       final userId = _auth.currentUser!.uid;
-      final snapshot = await _firestore
-          .collection('lists')
-          .where('members.$userId', isNotEqualTo: null)
+      // Ищем списки, где пользователь есть в подколлекции members
+      final membersSnapshot = await _firestore
+          .collectionGroup('members')
+          .where('role', isNotEqualTo: null)
           .get();
-      final lists = snapshot.docs.map((doc) => TaskList.fromMap(doc.data())).toList();
+      final listIds = membersSnapshot.docs
+          .where((doc) => doc.reference.parent.parent!.id != null)
+          .map((doc) => doc.reference.parent.parent!.id)
+          .toList();
+      final lists = <TaskList>[];
+      for (final listId in listIds) {
+        final listDoc = await _firestore.collection('lists').doc(listId).get();
+        if (listDoc.exists) {
+          lists.add(TaskList.fromMap(listDoc.data()!));
+        }
+      }
       emit(ListLoaded(lists, lists.isNotEmpty ? lists.first.id : null));
     } catch (e) {
       emit(ListError('Не удалось загрузить списки: попробуйте позже'));
@@ -43,16 +54,24 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onAddList(AddList event, Emitter<ListState> emit) async {
     try {
       final userId = _auth.currentUser!.uid;
+      final listId = const Uuid().v4();
       final list = TaskList(
-        id: const Uuid().v4(),
+        id: listId,
         name: event.name,
         ownerId: userId,
         description: event.description,
         color: event.color,
         sharedLists: event.sharedLists,
-        members: {userId: 'admin'},
       );
-      await _firestore.collection('lists').doc(list.id).set(list.toMap());
+      await _firestore.collection('lists').doc(listId).set(list.toMap());
+      await _firestore
+          .collection('lists')
+          .doc(listId)
+          .collection('members')
+          .doc(userId)
+          .set({
+        'role': 'admin',
+      });
       add(LoadLists());
     } catch (e) {
       emit(ListError('Не удалось добавить список: попробуйте позже'));
@@ -82,11 +101,20 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     }
     try {
       final userId = _auth.currentUser!.uid;
-      final listsQuery = await _firestore
-          .collection('lists')
-          .where('members.$userId', isNotEqualTo: null)
+      final membersSnapshot = await _firestore
+          .collectionGroup('members')
+          .where('role', isNotEqualTo: null)
           .get();
-      final lists = listsQuery.docs.map((doc) => TaskList.fromMap(doc.data())).toList();
+      final listIds = membersSnapshot.docs
+          .map((doc) => doc.reference.parent.parent!.id)
+          .toList();
+      final lists = <TaskList>[];
+      for (final listId in listIds) {
+        final listDoc = await _firestore.collection('lists').doc(listId).get();
+        if (listDoc.exists) {
+          lists.add(TaskList.fromMap(listDoc.data()!));
+        }
+      }
       final tasksQuery = await _firestore
           .collection('tasks')
           .where('ownerId', isEqualTo: userId)
@@ -140,10 +168,13 @@ class ListBloc extends Bloc<ListEvent, ListState> {
 
   Future<void> _onUpdateMemberRole(UpdateMemberRole event, Emitter<ListState> emit) async {
     try {
-      final list = (state as ListLoaded).lists.firstWhere((l) => l.id == event.listId);
-      final updatedMembers = Map<String, String>.from(list.members)..[event.userId] = event.role;
-      await _firestore.collection('lists').doc(event.listId).update({
-        'members': updatedMembers,
+      await _firestore
+          .collection('lists')
+          .doc(event.listId)
+          .collection('members')
+          .doc(event.userId)
+          .update({
+        'role': event.role,
       });
       add(LoadLists());
     } catch (e) {
