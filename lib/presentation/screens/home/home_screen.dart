@@ -22,6 +22,26 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isSearchVisible = false;
 
   @override
+  void initState() {
+    super.initState();
+    // Запускаем авто-выбор "Основной" после загрузки списков
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final listBloc = context.read<ListBloc>();
+      if (listBloc.state is ListLoaded) {
+        final state = listBloc.state as ListLoaded;
+        if (state.lists.isNotEmpty && state.selectedListId == null) {
+          final mainList = state.lists.firstWhere(
+                (list) => list.name.toLowerCase().contains('основной'),
+            orElse: () => state.lists.first,
+          );
+          listBloc.add(SelectList(mainList.id));
+          context.read<TaskBloc>().add(LoadTasks(mainList.id));
+        }
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
