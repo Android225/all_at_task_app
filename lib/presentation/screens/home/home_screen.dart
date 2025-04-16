@@ -223,7 +223,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(20),
                           child: Slidable(
                             key: Key(task.id),
-                            endActionPane: ActionPane(
+                            startActionPane: ActionPane(
                               motion: const ScrollMotion(),
                               children: [
                                 SlidableAction(
@@ -233,7 +233,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ));
                                   },
                                   backgroundColor: Colors.yellow,
+                                  foregroundColor: Colors.white,
                                   icon: Icons.star,
+                                  label: 'Избранное',
                                 ),
                                 SlidableAction(
                                   onPressed: (_) async {
@@ -241,7 +243,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       context: context,
                                       initialDate: task.deadline?.toDate() ?? DateTime.now(),
                                       firstDate: DateTime.now(),
-                                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                                      lastDate: DateTime(2030),
                                     );
                                     if (date != null) {
                                       context.read<TaskBloc>().add(UpdateTask(
@@ -250,20 +252,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                     }
                                   },
                                   backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
                                   icon: Icons.calendar_today,
+                                  label: 'Дедлайн',
                                 ),
                                 SlidableAction(
                                   onPressed: (_) {
                                     context.read<TaskBloc>().add(DeleteTask(task.id, task.listId));
                                   },
                                   backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
                                   icon: Icons.delete,
+                                  label: 'Удалить',
                                 ),
                               ],
                             ),
                             child: Card(
+                              elevation: 2,
                               color: task.isCompleted ? Colors.grey[300] : Colors.white,
                               child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                 leading: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -282,6 +290,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 title: Text(
                                   task.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                                   ),
@@ -289,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 subtitle: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(task.createdBy == state.userId ? 'Вы' : 'Другой'),
+                                    Text(task.ownerId == state.userId ? 'Вы' : 'Другой'),
                                     if (task.priority != null) Text('Приоритет: ${task.priority}'),
                                   ],
                                 ),

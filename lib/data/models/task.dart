@@ -9,7 +9,7 @@ class Task extends Equatable {
   final String listId;
   final Timestamp? deadline;
   final String priority;
-  final String createdBy;
+  final String ownerId;
   final String? assignedTo;
   final bool isCompleted;
   final bool isFavorite;
@@ -22,7 +22,7 @@ class Task extends Equatable {
     required this.listId,
     this.deadline,
     this.priority = 'medium',
-    required this.createdBy,
+    required this.ownerId,
     this.assignedTo,
     this.isCompleted = false,
     this.isFavorite = false,
@@ -38,7 +38,7 @@ class Task extends Equatable {
       listId: map['listId'],
       deadline: map['deadline'],
       priority: map['priority'] ?? 'medium',
-      createdBy: map['createdBy'],
+      ownerId: map['ownerId'],
       assignedTo: map['assignedTo'],
       isCompleted: map['isCompleted'] ?? false,
       isFavorite: map['isFavorite'] ?? false,
@@ -54,7 +54,7 @@ class Task extends Equatable {
       'listId': listId,
       'deadline': deadline,
       'priority': priority,
-      'createdBy': createdBy,
+      'ownerId': ownerId,
       'assignedTo': assignedTo,
       'isCompleted': isCompleted,
       'isFavorite': isFavorite,
@@ -69,7 +69,7 @@ class Task extends Equatable {
     String? listId,
     Timestamp? deadline,
     String? priority,
-    String? createdBy,
+    String? ownerId,
     String? assignedTo,
     bool? isCompleted,
     bool? isFavorite,
@@ -82,7 +82,7 @@ class Task extends Equatable {
       listId: listId ?? this.listId,
       deadline: deadline ?? this.deadline,
       priority: priority ?? this.priority,
-      createdBy: createdBy ?? this.createdBy,
+      ownerId: ownerId ?? this.ownerId,
       assignedTo: assignedTo ?? this.assignedTo,
       isCompleted: isCompleted ?? this.isCompleted,
       isFavorite: isFavorite ?? this.isFavorite,
@@ -98,7 +98,7 @@ class Task extends Equatable {
     listId,
     deadline,
     priority,
-    createdBy,
+    ownerId,
     assignedTo,
     isCompleted,
     isFavorite,

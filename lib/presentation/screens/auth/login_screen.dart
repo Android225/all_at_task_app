@@ -1,6 +1,6 @@
+import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
 import 'package:all_at_task/presentation/screens/home/home_screen.dart';
@@ -9,11 +9,9 @@ import 'package:all_at_task/presentation/widgets/auth_header.dart';
 import 'package:all_at_task/router/app_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:all_at_task/config/theme/app_theme.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 
 class LoginScreen extends StatefulWidget {
-  LoginScreen({super.key});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -22,7 +20,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
+  bool _obscurePassword = true;
   String? _emailError;
   String? _passwordError;
 
@@ -52,7 +50,10 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     if (_emailError == null && _passwordError == null) {
-      context.read<AuthBloc>().add(LogInRequested(email, password));
+      context.read<AuthBloc>().add(AuthSignIn(
+        email: email,
+        password: password,
+      ));
     }
   }
 
@@ -63,21 +64,25 @@ class _LoginScreenState extends State<LoginScreen> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: AppTheme.defaultPadding),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const AuthHeader(subtitle: 'Добро пожаловать!'),
+              const AuthHeader(subtitle: 'С возвращением!'),
               AppTextField(
                 controller: _emailController,
                 labelText: 'Email',
                 keyboardType: TextInputType.emailAddress,
                 errorText: _emailError,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               AppTextField(
                 controller: _passwordController,
                 labelText: 'Пароль',
-                obscureText: true,
+                obscureText: _obscurePassword,
                 errorText: _passwordError,
+                suffixIcon: IconButton(
+                  icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                  onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                ),
               ),
               const SizedBox(height: 8),
               Align(
@@ -89,28 +94,21 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 16),
               BlocConsumer<AuthBloc, AuthState>(
-                listenWhen: (previous, current) =>
-                current is AuthSuccess && !current.isSignUp || current is AuthFailure,
                 listener: (context, state) {
-                  if (state is AuthSuccess && !state.isSignUp) {
-                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+                  if (state is AuthSuccess) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешный вход!')),
                     );
-                    context.read<AuthBloc>().add(ResetAuthState());
                     getIt<AppRouter>().pushReplacement(const HomeScreen());
                   } else if (state is AuthFailure) {
-                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
                   }
                 },
-                buildWhen: (previous, current) =>
-                current is AuthLoading || current is AuthInitial,
                 builder: (context, state) {
                   if (state is AuthLoading) {
-                    return const CircularProgressIndicator();
+                    return const Center(child: CircularProgressIndicator());
                   }
                   return ElevatedButton(
                     onPressed: _validateAndLogin,
@@ -118,10 +116,16 @@ class _LoginScreenState extends State<LoginScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => getIt<AppRouter>().push(const SignUpScreen()),
-                child: const Text('Нет аккаунта? Зарегистрироваться'),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Нет аккаунта? '),
+                  TextButton(
+                    onPressed: () => getIt<AppRouter>().push(const SignUpScreen()),
+                    child: const Text('Зарегистрироваться'),
+                  ),
+                ],
               ),
             ],
           ),

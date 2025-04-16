@@ -17,94 +17,105 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => getIt<ListBloc>()..add(LoadLists()),
-      child: Scaffold(
-        appBar: AppBar(
-          backgroundColor: AppTheme.primaryColor,
-          title: const Text('Мои списки'),
-        ),
-        body: BlocBuilder<ListBloc, ListState>(
-          builder: (context, state) {
-            if (state is ListLoading) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (state is ListLoaded) {
-              return ListView.builder(
-                padding: const EdgeInsets.all(AppTheme.defaultPadding),
-                itemCount: state.lists.length,
-                itemBuilder: (context, index) {
-                  final list = state.lists[index];
-                  return SizedBox(
-                    height: 60,
-                    child: Card(
-                      elevation: 2,
-                      child: ListTile(
-                        title: Text(
-                          list.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
-                          onPressed: () {
-                            context.read<ListBloc>().add(DeleteList(list.id));
+      child: Builder(
+        builder: (scaffoldContext) => Scaffold(
+          appBar: AppBar(
+            backgroundColor: AppTheme.primaryColor,
+            title: const Text('Мои списки'),
+          ),
+          body: BlocBuilder<ListBloc, ListState>(
+            builder: (context, state) {
+              if (state is ListLoading) {
+                return const Center(child: CircularProgressIndicator());
+              } else if (state is ListLoaded) {
+                return ListView.builder(
+                  padding: const EdgeInsets.all(AppTheme.defaultPadding),
+                  itemCount: state.lists.length,
+                  itemBuilder: (context, index) {
+                    final list = state.lists[index];
+                    return SizedBox(
+                      height: 60,
+                      child: Card(
+                        elevation: 2,
+                        child: ListTile(
+                          title: Text(
+                            list.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              context.read<ListBloc>().add(DeleteList(list.id));
+                            },
+                          ),
+                          onTap: () {
+                            context.read<ListBloc>().add(SelectList(list.id));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const HomeScreen()),
+                            );
                           },
                         ),
-                        onTap: () {
-                          context.read<ListBloc>().add(SelectList(list.id));
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const HomeScreen()),
-                          );
-                        },
                       ),
-                    ),
-                  );
-                },
-              );
-            } else if (state is ListError) {
-              return Center(child: Text(state.message));
-            }
-            return const Center(child: Text('Нет списков'));
-          },
-        ),
-        floatingActionButton: FloatingActionButton(
-          backgroundColor: AppTheme.primaryColor,
-          onPressed: () => _showAddListBottomSheet(context),
-          child: const Icon(Icons.add),
+                    );
+                  },
+                );
+              } else if (state is ListError) {
+                return Center(child: Text(state.message));
+              }
+              return const Center(child: Text('Нет списков'));
+            },
+          ),
+          floatingActionButton: FloatingActionButton(
+            backgroundColor: AppTheme.primaryColor,
+            onPressed: () => _showAddListBottomSheet(scaffoldContext),
+            child: const Icon(Icons.add),
+          ),
         ),
       ),
     );
   }
 
-  void _showAddListBottomSheet(BuildContext context) {
+  void _showAddListBottomSheet(BuildContext scaffoldContext) {
     final nameController = TextEditingController();
     showModalBottomSheet(
-      context: context,
-      builder: (context) {
+      context: scaffoldContext,
+      isScrollControlled: true,
+      builder: (bottomSheetContext) {
         return Padding(
-          padding: const EdgeInsets.all(AppTheme.defaultPadding),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Новый список',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: nameController,
-                decoration: const InputDecoration(labelText: 'Название списка'),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () {
-                  if (nameController.text.isNotEmpty) {
-                    context.read<ListBloc>().add(AddList(nameController.text));
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text('Создать'),
-              ),
-            ],
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+            left: AppTheme.defaultPadding,
+            right: AppTheme.defaultPadding,
+            top: AppTheme.defaultPadding,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Новый список',
+                  style: Theme.of(scaffoldContext).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Название списка'),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nameController.text.isNotEmpty) {
+                      scaffoldContext.read<ListBloc>().add(AddList(nameController.text));
+                      Navigator.pop(bottomSheetContext);
+                    }
+                  },
+                  child: const Text('Создать'),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         );
       },

@@ -44,7 +44,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         listId: event.listId,
         deadline: event.deadline != null ? Timestamp.fromDate(event.deadline!) : null,
         priority: event.priority,
-        createdBy: userId,
+        ownerId: userId,
         assignedTo: userId,
         createdAt: Timestamp.now(),
       );

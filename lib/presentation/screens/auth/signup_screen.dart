@@ -1,6 +1,4 @@
 import 'package:all_at_task/data/services/service_locator.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
 import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
 import 'package:all_at_task/presentation/widgets/app_text_field.dart';
 import 'package:all_at_task/presentation/widgets/auth_header.dart';
@@ -61,11 +59,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
     });
 
     if (_nameError == null && _usernameError == null && _emailError == null && _passwordError == null) {
-      context.read<AuthBloc>().add(SignUpRequested(
-        name,
-        username,
-        email,
-        password,
+      context.read<AuthBloc>().add(AuthSignUp(
+        email: email,
+        password: password,
+        username: username,
+        name: name,
       ));
     }
   }
@@ -119,29 +117,23 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 24),
               BlocConsumer<AuthBloc, AuthState>(
-                listenWhen: (previous, current) =>
-                current is AuthSuccess && current.isSignUp || current is AuthFailure,
                 listener: (context, state) {
-                  if (state is AuthSuccess && state.isSignUp) {
-                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
+                  if (state is AuthSuccess) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Успешная регистрация!')),
                     );
-                    context.read<AuthBloc>().add(ResetAuthState());
-                    getIt<AppRouter>().pushReplacement(LoginScreen());
+                    getIt<AppRouter>().pushReplacement(const LoginScreen());
                   } else if (state is AuthFailure) {
-                    ScaffoldMessenger.of(context).removeCurrentSnackBar();
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
                   }
                 },
-                buildWhen: (previous, current) =>
-                current is AuthLoading || current is AuthInitial,
                 builder: (context, state) {
-                  return state is AuthLoading
-                      ? const Center(child: CircularProgressIndicator())
-                      : ElevatedButton(
+                  if (state is AuthLoading) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  return ElevatedButton(
                     onPressed: _validateAndSignUp,
                     child: const Text('Зарегистрироваться'),
                   );
@@ -153,7 +145,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 children: [
                   const Text('У вас уже есть аккаунт? '),
                   TextButton(
-                    onPressed: () => getIt<AppRouter>().push(LoginScreen()),
+                    onPressed: () => getIt<AppRouter>().push(const LoginScreen()),
                     child: const Text('Войти'),
                   ),
                 ],

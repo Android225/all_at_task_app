@@ -1,6 +1,4 @@
 import 'package:all_at_task/data/services/service_locator.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_event.dart';
-import 'package:all_at_task/presentation/bloc/auth/auth_state.dart';
 import 'package:all_at_task/presentation/widgets/app_text_field.dart';
 import 'package:all_at_task/presentation/widgets/auth_header.dart';
 import 'package:all_at_task/router/app_router.dart';
@@ -38,12 +36,12 @@ class ForgotPasswordScreen extends StatelessWidget {
               const SizedBox(height: 16),
               BlocConsumer<AuthBloc, AuthState>(
                 listener: (context, state) {
-                  if (state is ResetPasswordSuccess) {
+                  if (state is AuthResetPasswordSuccess) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Письмо для сброса пароля отправлено!')),
                     );
                     getIt<AppRouter>().pop();
-                  } else if (state is ResetPasswordFailure) {
+                  } else if (state is AuthResetPasswordFailure) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text(state.message)),
                     );
@@ -55,7 +53,7 @@ class ForgotPasswordScreen extends StatelessWidget {
                   }
                   return ElevatedButton(
                     onPressed: () {
-                      context.read<AuthBloc>().add(ResetPasswordRequested(
+                      context.read<AuthBloc>().add(AuthResetPassword(
                         _emailController.text.trim(),
                       ));
                     },

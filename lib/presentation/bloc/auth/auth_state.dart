@@ -1,31 +1,28 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:meta/meta.dart';
-
+part of 'auth_bloc.dart';
 
 @immutable
-abstract class AuthState {}
+sealed class AuthState {}
 
-class AuthInitial extends AuthState {}
+final class AuthInitial extends AuthState {}
 
-class AuthLoading extends AuthState {}
+final class AuthLoading extends AuthState {}
 
-class AuthSuccess extends AuthState {
-  final User? user;
-  final bool isSignUp;
+final class AuthSuccess extends AuthState {
+  final User user;
 
-  AuthSuccess(this.user, {this.isSignUp = false});
+  AuthSuccess(this.user);
 }
 
-class AuthFailure extends AuthState {
+final class AuthFailure extends AuthState {
   final String message;
 
   AuthFailure(this.message);
 }
 
-class ResetPasswordSuccess extends AuthState {}
+final class AuthResetPasswordSuccess extends AuthState {}
 
-class ResetPasswordFailure extends AuthState {
+final class AuthResetPasswordFailure extends AuthState {
   final String message;
 
-  ResetPasswordFailure(this.message);
+  AuthResetPasswordFailure(this.message);
 }

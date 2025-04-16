@@ -1,29 +1,38 @@
-import 'package:meta/meta.dart';
+part of 'auth_bloc.dart';
 
 @immutable
-abstract class AuthEvent {}
+sealed class AuthEvent {}
 
-class SignUpRequested extends AuthEvent {
-  final String name;
+final class AuthSignUp extends AuthEvent {
+  final String email;
+  final String password;
   final String username;
+  final String name;
+
+  AuthSignUp({
+    required this.email,
+    required this.password,
+    required this.username,
+    required this.name,
+  });
+}
+
+final class AuthSignIn extends AuthEvent {
   final String email;
   final String password;
 
-  SignUpRequested(this.name, this.username, this.email, this.password);
+  AuthSignIn({
+    required this.email,
+    required this.password,
+  });
 }
 
-class LogInRequested extends AuthEvent {
+final class AuthSignOut extends AuthEvent {}
+
+final class AuthCheck extends AuthEvent {}
+
+final class AuthResetPassword extends AuthEvent {
   final String email;
-  final String password;
 
-  LogInRequested(this.email, this.password);
+  AuthResetPassword(this.email);
 }
-
-class ResetPasswordRequested extends AuthEvent {
-  final String email;
-
-  ResetPasswordRequested(this.email);
-}
-class ResetAuthState extends AuthEvent {}
-
-class LogOutRequested extends AuthEvent {}

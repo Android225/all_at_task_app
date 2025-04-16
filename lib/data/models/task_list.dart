@@ -1,41 +1,28 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:equatable/equatable.dart';
+import 'package:uuid/uuid.dart';
 
-class TaskList {
+class TaskList extends Equatable {
   final String id;
   final String name;
   final String ownerId;
-  final List<String> participants;
-  final List<String> roles;
-  final DateTime createdAt;
+  final Timestamp createdAt;
 
   TaskList({
-    required this.id,
+    String? id,
     required this.name,
     required this.ownerId,
-    required this.participants,
-    required this.roles,
-    required this.createdAt,
-  });
+    Timestamp? createdAt,
+  })  : id = id ?? const Uuid().v4(),
+        createdAt = createdAt ?? Timestamp.now();
 
   factory TaskList.fromMap(Map<String, dynamic> map) {
     return TaskList(
-      id: map['id'] as String? ?? '',
-      name: map['name'] as String? ?? '',
-      ownerId: map['ownerId'] as String? ?? '',
-      participants: List<String>.from(map['participants'] ?? []),
-      roles: List<String>.from(map['roles'] ?? []),
-      createdAt: _parseCreatedAt(map['createdAt']),
+      id: map['id'],
+      name: map['name'],
+      ownerId: map['ownerId'],
+      createdAt: map['createdAt'],
     );
-  }
-
-  static DateTime _parseCreatedAt(dynamic value) {
-    if (value is Timestamp) {
-      return value.toDate();
-    } else if (value is String) {
-      return DateTime.tryParse(value) ?? DateTime.now();
-    } else {
-      return DateTime.now();
-    }
   }
 
   Map<String, dynamic> toMap() {
@@ -43,9 +30,10 @@ class TaskList {
       'id': id,
       'name': name,
       'ownerId': ownerId,
-      'participants': participants,
-      'roles': roles,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt,
     };
   }
+
+  @override
+  List<Object?> get props => [id, name, ownerId, createdAt];
 }
