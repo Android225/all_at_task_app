@@ -19,114 +19,163 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
+  final _titleController = TextEditingController();
+  final _descriptionController = TextEditingController();
   bool _isSearchVisible = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // Запускаем авто-выбор "Основной" после загрузки списков
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final listBloc = context.read<ListBloc>();
-      if (listBloc.state is ListLoaded) {
-        final state = listBloc.state as ListLoaded;
-        if (state.lists.isNotEmpty && state.selectedListId == null) {
-          final mainList = state.lists.firstWhere(
-                (list) => list.name.toLowerCase().contains('основной'),
-            orElse: () => state.lists.first,
-          );
-          listBloc.add(SelectList(mainList.id));
-          context.read<TaskBloc>().add(LoadTasks(mainList.id));
-        }
-      }
-    });
-  }
+  DateTime? _selectedDate;
+  String _selectedPriority = 'medium';
+  bool _isInitialSelectionDone = false;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _titleController.dispose();
+    _descriptionController.dispose();
     super.dispose();
   }
 
   void _showAddTaskBottomSheet(BuildContext scaffoldContext, String listId) {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    DateTime? selectedDate;
-    String selectedPriority = 'medium';
+    _titleController.clear();
+    _descriptionController.clear();
+    _selectedDate = null;
+    _selectedPriority = 'medium';
 
     showModalBottomSheet(
       context: scaffoldContext,
       isScrollControlled: true,
       builder: (bottomSheetContext) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
-            left: AppTheme.defaultPadding,
-            right: AppTheme.defaultPadding,
-            top: AppTheme.defaultPadding,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Новая задача',
-                  style: Theme.of(bottomSheetContext).textTheme.titleLarge,
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter bottomSheetSetState) {
+            return Container(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
+                left: AppTheme.defaultPadding * 1.5,
+                right: AppTheme.defaultPadding * 1.5,
+                top: AppTheme.defaultPadding * 2,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Новая задача',
+                      style: Theme.of(bottomSheetContext).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    TextField(
+                      controller: _titleController,
+                      decoration: InputDecoration(
+                        labelText: 'Название',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                      ),
+                      onChanged: (_) => bottomSheetSetState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _descriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'Описание',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                      ),
+                      maxLines: 3,
+                      onChanged: (_) => bottomSheetSetState(() {}),
+                    ),
+                    const SizedBox(height: 16),
+                    DropdownButtonFormField<String>(
+                      value: _selectedPriority,
+                      decoration: InputDecoration(
+                        labelText: 'Приоритет',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                      ),
+                      items: ['low', 'medium', 'high']
+                          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
+                          .toList(),
+                      onChanged: (value) {
+                        bottomSheetSetState(() {
+                          _selectedPriority = value ?? 'medium';
+                          print('Selected priority: $_selectedPriority');
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: () async {
+                        final date = await showDatePicker(
+                          context: bottomSheetContext,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                        );
+                        if (date != null) {
+                          bottomSheetSetState(() {
+                            _selectedDate = date;
+                            print('Selected date: $_selectedDate');
+                          });
+                        }
+                      },
+                      child: Text(
+                        _selectedDate == null
+                            ? 'Выбрать дату'
+                            : DateFormat('dd.MM.yyyy').format(_selectedDate!),
+                        style: TextStyle(
+                          color: AppTheme.primaryColor,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: _titleController.text.isEmpty
+                          ? null
+                          : () {
+                        print('Creating task: title=${_titleController.text}, '
+                            'date=$_selectedDate, priority=$_selectedPriority');
+                        scaffoldContext.read<TaskBloc>().add(AddTask(
+                          title: _titleController.text,
+                          description: _descriptionController.text.isEmpty
+                              ? null
+                              : _descriptionController.text,
+                          deadline: _selectedDate,
+                          listId: listId,
+                          priority: _selectedPriority,
+                        ));
+                        Navigator.pop(bottomSheetContext);
+                      },
+                      child: const Text(
+                        'Создать',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(labelText: 'Название'),
-                ),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Описание'),
-                ),
-                DropdownButtonFormField<String>(
-                  value: selectedPriority,
-                  decoration: const InputDecoration(labelText: 'Приоритет'),
-                  items: ['low', 'medium', 'high']
-                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                      .toList(),
-                  onChanged: (value) => setState(() => selectedPriority = value ?? 'medium'),
-                ),
-                TextButton(
-                  onPressed: () async {
-                    final date = await showDatePicker(
-                      context: bottomSheetContext,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime(2030),
-                    );
-                    if (date != null) {
-                      setState(() => selectedDate = date);
-                    }
-                  },
-                  child: Text(
-                    selectedDate == null
-                        ? 'Выбрать дату'
-                        : DateFormat('dd.MM.yyyy').format(selectedDate!),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    if (titleController.text.isNotEmpty) {
-                      scaffoldContext.read<TaskBloc>().add(AddTask(
-                        title: titleController.text,
-                        description: descriptionController.text,
-                        deadline: selectedDate,
-                        listId: listId,
-                        priority: selectedPriority,
-                      ));
-                      Navigator.pop(bottomSheetContext);
-                    }
-                  },
-                  child: const Text('Создать'),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
@@ -165,6 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: GestureDetector(
                             onTap: () {
+                              print('Tapped list: ${list.name} (ID: ${list.id})');
                               context.read<ListBloc>().add(SelectList(list.id));
                               context.read<TaskBloc>().add(LoadTasks(list.id));
                             },
@@ -205,140 +255,187 @@ class _HomeScreenState extends State<HomeScreen> {
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
                   ),
                 ),
-                ListTile(
-                  title: const Text('Профиль'),
-                  onTap: () {},
-                ),
-                ListTile(
-                  title: const Text('Друзья'),
-                  onTap: () {},
-                ),
-                ListTile(
-                  title: const Text('Избранное'),
-                  onTap: () {},
-                ),
-                ListTile(
-                  title: const Text('Настройки'),
-                  onTap: () {},
-                ),
-                ListTile(
-                  title: const Text('Приглашения'),
-                  onTap: () {},
-                ),
+                ListTile(title: const Text('Профиль'), onTap: () {}),
+                ListTile(title: const Text('Друзья'), onTap: () {}),
+                ListTile(title: const Text('Избранное'), onTap: () {}),
+                ListTile(title: const Text('Настройки'), onTap: () {}),
+                ListTile(title: const Text('Приглашения'), onTap: () {}),
               ],
             ),
           ),
           body: Stack(
             children: [
-              BlocBuilder<TaskBloc, TaskState>(
-                builder: (context, state) {
-                  if (state is TaskLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (state is TaskLoaded) {
-                    return ListView.builder(
-                      itemCount: state.tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = state.tasks[index];
-                        return ClipRRect(
-                          borderRadius: BorderRadius.circular(20),
-                          child: Slidable(
-                            key: Key(task.id),
-                            startActionPane: ActionPane(
-                              motion: const ScrollMotion(),
-                              children: [
-                                SlidableAction(
-                                  onPressed: (_) {
-                                    context.read<TaskBloc>().add(UpdateTask(
-                                      task.copyWith(isFavorite: !task.isFavorite),
-                                    ));
-                                  },
-                                  backgroundColor: Colors.yellow,
-                                  foregroundColor: Colors.white,
-                                  icon: Icons.star,
-                                  label: 'Избранное',
-                                ),
-                                SlidableAction(
-                                  onPressed: (_) async {
-                                    final date = await showDatePicker(
-                                      context: context,
-                                      initialDate: task.deadline?.toDate() ?? DateTime.now(),
-                                      firstDate: DateTime.now(),
-                                      lastDate: DateTime(2030),
-                                    );
-                                    if (date != null) {
-                                      context.read<TaskBloc>().add(UpdateTask(
-                                        task.copyWith(deadline: Timestamp.fromDate(date)),
-                                      ));
-                                    }
-                                  },
-                                  backgroundColor: Colors.blue,
-                                  foregroundColor: Colors.white,
-                                  icon: Icons.calendar_today,
-                                  label: 'Дедлайн',
-                                ),
-                                SlidableAction(
-                                  onPressed: (_) {
-                                    context.read<TaskBloc>().add(DeleteTask(task.id, task.listId));
-                                  },
-                                  backgroundColor: Colors.red,
-                                  foregroundColor: Colors.white,
-                                  icon: Icons.delete,
-                                  label: 'Удалить',
-                                ),
-                              ],
-                            ),
-                            child: Card(
-                              elevation: 2,
-                              color: task.isCompleted ? Colors.grey[300] : Colors.white,
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                leading: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Checkbox(
-                                      value: task.isCompleted,
-                                      onChanged: (value) {
-                                        context.read<TaskBloc>().add(UpdateTask(
-                                          task.copyWith(isCompleted: value ?? false),
-                                        ));
-                                      },
+              MultiBlocListener(
+                listeners: [
+                  BlocListener<ListBloc, ListState>(
+                    listener: (context, state) {
+                      print('ListBloc state: $state');
+                      if (state is ListLoaded && state.lists.isNotEmpty && !_isInitialSelectionDone) {
+                        print('Lists loaded: ${state.lists.map((l) => "${l.name} (ID: ${l.id})").toList()}');
+                        final mainList = state.lists.firstWhere(
+                              (list) => list.name.toLowerCase().trim() == 'основной',
+                          orElse: () => state.lists.first,
+                        );
+                        print('Initial selecting list: ${mainList.name} (ID: ${mainList.id})');
+                        context.read<ListBloc>().add(SelectList(mainList.id));
+                        context.read<TaskBloc>().add(LoadTasks(mainList.id));
+                        _isInitialSelectionDone = true;
+                      } else if (state is ListLoaded && state.lists.isEmpty) {
+                        print('No lists available');
+                      }
+                    },
+                  ),
+                  BlocListener<TaskBloc, TaskState>(
+                    listener: (context, state) {
+                      print('TaskBloc state: $state');
+                      if (state is TaskLoaded) {
+                        print('Tasks loaded: ${state.tasks.map((t) => t.title).toList()}');
+                      } else if (state is TaskError) {
+                        print('Task error: ${state.message}');
+                      }
+                    },
+                  ),
+                ],
+                child: BlocBuilder<TaskBloc, TaskState>(
+                  builder: (context, taskState) {
+                    final listState = context.watch<ListBloc>().state;
+                    print('Building UI: listState=$listState, taskState=$taskState');
+                    if (taskState is TaskLoading || listState is ListLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (listState is ListLoaded && listState.lists.isNotEmpty) {
+                      if (taskState is TaskLoaded) {
+                        return RefreshIndicator(
+                          onRefresh: () async {
+                            if (listState.selectedListId != null) {
+                              context.read<TaskBloc>().add(LoadTasks(listState.selectedListId!));
+                            }
+                          },
+                          child: taskState.tasks.isEmpty
+                              ? const Center(child: Text('Нет задач'))
+                              : ListView.builder(
+                            itemCount: taskState.tasks.length,
+                            itemBuilder: (context, index) {
+                              final task = taskState.tasks[index];
+                              return ClipRRect(
+                                borderRadius: BorderRadius.circular(20),
+                                child: Slidable(
+                                  key: Key(task.id),
+                                  endActionPane: ActionPane(
+                                    motion: const ScrollMotion(),
+                                    children: [
+                                      SlidableAction(
+                                        onPressed: (_) {
+                                          context.read<TaskBloc>().add(UpdateTask(
+                                            task.copyWith(isFavorite: !task.isFavorite),
+                                          ));
+                                        },
+                                        backgroundColor: Colors.yellow,
+                                        foregroundColor: Colors.white,
+                                        icon: Icons.star,
+                                        label: 'Избранное',
+                                      ),
+                                      SlidableAction(
+                                        onPressed: (_) async {
+                                          final date = await showDatePicker(
+                                            context: context,
+                                            initialDate:
+                                            task.deadline?.toDate() ?? DateTime.now(),
+                                            firstDate: DateTime.now(),
+                                            lastDate: DateTime(2030),
+                                          );
+                                          if (date != null) {
+                                            context.read<TaskBloc>().add(UpdateTask(
+                                              task.copyWith(
+                                                  deadline: Timestamp.fromDate(date)),
+                                            ));
+                                          }
+                                        },
+                                        backgroundColor: Colors.blue,
+                                        foregroundColor: Colors.white,
+                                        icon: Icons.calendar_today,
+                                        label: 'Дедлайн',
+                                      ),
+                                      SlidableAction(
+                                        onPressed: (_) {
+                                          context.read<TaskBloc>().add(
+                                              DeleteTask(task.id, task.listId));
+                                        },
+                                        backgroundColor: Colors.red,
+                                        foregroundColor: Colors.white,
+                                        icon: Icons.delete,
+                                        label: 'Удалить',
+                                      ),
+                                    ],
+                                  ),
+                                  child: Card(
+                                    elevation: 2,
+                                    color: task.isCompleted ? Colors.grey[300] : Colors.white,
+                                    child: ListTile(
+                                      contentPadding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 8),
+                                      leading: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Checkbox(
+                                            value: task.isCompleted,
+                                            onChanged: (value) {
+                                              context.read<TaskBloc>().add(UpdateTask(
+                                                task.copyWith(
+                                                    isCompleted: value ?? false),
+                                              ));
+                                            },
+                                          ),
+                                          const CircleAvatar(
+                                            backgroundImage: AssetImage('assets/cat.png'),
+                                          ),
+                                        ],
+                                      ),
+                                      title: Text(
+                                        task.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          decoration: task.isCompleted
+                                              ? TextDecoration.lineThrough
+                                              : null,
+                                        ),
+                                      ),
+                                      subtitle: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(task.ownerId == taskState.userId
+                                              ? 'Вы'
+                                              : 'Другой'),
+                                          if (task.priority != null)
+                                            Text('Приоритет: ${task.priority}'),
+                                          if (task.deadline != null)
+                                            Text(
+                                              'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
+                                            ),
+                                        ],
+                                      ),
+                                      trailing: Text(
+                                        task.deadline != null
+                                            ? DateFormat('dd.MM')
+                                            .format(task.deadline!.toDate())
+                                            : '',
+                                      ),
                                     ),
-                                    const CircleAvatar(
-                                      backgroundImage: AssetImage('assets/cat.png'),
-                                    ),
-                                  ],
-                                ),
-                                title: Text(
-                                  task.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                                   ),
                                 ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(task.ownerId == state.userId ? 'Вы' : 'Другой'),
-                                    if (task.priority != null) Text('Приоритет: ${task.priority}'),
-                                  ],
-                                ),
-                                trailing: Text(
-                                  task.deadline != null
-                                      ? DateFormat('dd.MM').format(task.deadline!.toDate())
-                                      : '',
-                                ),
-                              ),
-                            ),
+                              );
+                            },
                           ),
                         );
-                      },
-                    );
-                  } else if (state is TaskError) {
-                    return Center(child: Text(state.message));
-                  }
-                  return const Center(child: Text('Выберите список'));
-                },
+                      }
+                      if (taskState is TaskError) {
+                        return Center(child: Text(taskState.message));
+                      }
+                    }
+                    return const Center(child: Text('Нет доступных списков'));
+                  },
+                ),
               ),
               if (_isSearchVisible)
                 Container(
@@ -397,8 +494,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SnackBar(content: Text('Сначала создайте или выберите список')),
                     );
                   }
-                } else if (index == 2) {
-                  // Заглушка для calendar_screen
                 }
               },
             ),

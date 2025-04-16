@@ -28,9 +28,10 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           .where('listId', isEqualTo: event.listId);
       final snapshot = await query.get();
       final tasks = snapshot.docs.map((doc) => Task.fromMap(doc.data())).toList();
+      print('Tasks loaded: ${tasks.map((t) => {'title': t.title, 'deadline': t.deadline?.toDate().toString(), 'priority': t.priority}).toList()}');
       emit(TaskLoaded(tasks, userId));
     } catch (e) {
-      emit(TaskError('Не удалось загрузить задачи: попробуйте позже'));
+      emit(TaskError('Не удалось загрузить задачи: $e'));
     }
   }
 
@@ -40,18 +41,21 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       final task = Task(
         id: const Uuid().v4(),
         title: event.title,
-        description: event.description,
+        description: event.description?.isEmpty ?? true ? null : event.description,
         listId: event.listId,
         deadline: event.deadline != null ? Timestamp.fromDate(event.deadline!) : null,
         priority: event.priority,
         ownerId: userId,
         assignedTo: userId,
+        isCompleted: false,
+        isFavorite: false,
         createdAt: Timestamp.now(),
       );
+      print('Adding task: title=${task.title}, deadline=${task.deadline?.toDate()}, priority=${task.priority}');
       await _firestore.collection('tasks').doc(task.id).set(task.toMap());
       add(LoadTasks(event.listId));
     } catch (e) {
-      emit(TaskError('Не удалось добавить задачу: попробуйте позже'));
+      emit(TaskError('Не удалось добавить задачу: $e'));
     }
   }
 
@@ -60,7 +64,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       await _firestore.collection('tasks').doc(event.task.id).update(event.task.toMap());
       add(LoadTasks(event.task.listId));
     } catch (e) {
-      emit(TaskError('Не удалось обновить задачу: попробуйте позже'));
+      emit(TaskError('Не удалось обновить задачу: $e'));
     }
   }
 
@@ -69,7 +73,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
       await _firestore.collection('tasks').doc(event.taskId).delete();
       add(LoadTasks(event.listId));
     } catch (e) {
-      emit(TaskError('Не удалось удалить задачу: попробуйте позже'));
+      emit(TaskError('Не удалось удалить задачу: $e'));
     }
   }
 }

@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
-import 'package:uuid/uuid.dart';
 
 class Task extends Equatable {
   final String id;
@@ -8,59 +7,26 @@ class Task extends Equatable {
   final String? description;
   final String listId;
   final Timestamp? deadline;
-  final String priority;
+  final String? priority;
   final String ownerId;
-  final String? assignedTo;
+  final String assignedTo;
   final bool isCompleted;
   final bool isFavorite;
   final Timestamp createdAt;
 
   Task({
-    String? id,
+    required this.id,
     required this.title,
     this.description,
     required this.listId,
     this.deadline,
-    this.priority = 'medium',
+    this.priority,
     required this.ownerId,
-    this.assignedTo,
-    this.isCompleted = false,
-    this.isFavorite = false,
-    Timestamp? createdAt,
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? Timestamp.now();
-
-  factory Task.fromMap(Map<String, dynamic> map) {
-    return Task(
-      id: map['id'],
-      title: map['title'],
-      description: map['description'],
-      listId: map['listId'],
-      deadline: map['deadline'],
-      priority: map['priority'] ?? 'medium',
-      ownerId: map['ownerId'],
-      assignedTo: map['assignedTo'],
-      isCompleted: map['isCompleted'] ?? false,
-      isFavorite: map['isFavorite'] ?? false,
-      createdAt: map['createdAt'],
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'title': title,
-      'description': description,
-      'listId': listId,
-      'deadline': deadline,
-      'priority': priority,
-      'ownerId': ownerId,
-      'assignedTo': assignedTo,
-      'isCompleted': isCompleted,
-      'isFavorite': isFavorite,
-      'createdAt': createdAt,
-    };
-  }
+    required this.assignedTo,
+    required this.isCompleted,
+    required this.isFavorite,
+    required this.createdAt,
+  });
 
   Task copyWith({
     String? id,
@@ -88,6 +54,38 @@ class Task extends Equatable {
       isFavorite: isFavorite ?? this.isFavorite,
       createdAt: createdAt ?? this.createdAt,
     );
+  }
+
+  factory Task.fromMap(Map<String, dynamic> map) {
+    return Task(
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'],
+      listId: map['listId'] ?? '',
+      deadline: map['deadline'],
+      priority: map['priority'],
+      ownerId: map['ownerId'] ?? '',
+      assignedTo: map['assignedTo'] ?? '',
+      isCompleted: map['isCompleted'] ?? false,
+      isFavorite: map['isFavorite'] ?? false,
+      createdAt: map['createdAt'] ?? Timestamp.now(),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'description': description,
+      'listId': listId,
+      'deadline': deadline,
+      'priority': priority,
+      'ownerId': ownerId,
+      'assignedTo': assignedTo,
+      'isCompleted': isCompleted,
+      'isFavorite': isFavorite,
+      'createdAt': createdAt,
+    };
   }
 
   @override
