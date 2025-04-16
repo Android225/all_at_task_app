@@ -342,39 +342,46 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
             ],
           ),
-          bottomNavigationBar: BottomNavigationBar(
-            backgroundColor: AppTheme.primaryColor,
-            selectedItemColor: Colors.white,
-            unselectedItemColor: Colors.white70,
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Списки',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.add),
-                label: 'Задача',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.calendar_today),
-                label: 'Календарь',
-              ),
-            ],
-            onTap: (index) {
-              if (index == 0) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ListHomeScreen()),
-                );
-              } else if (index == 1) {
-                final listId = (context.read<ListBloc>().state as ListLoaded?)?.selectedListId;
-                if (listId != null) {
-                  _showAddTaskBottomSheet(context, listId);
+          bottomNavigationBar: Builder(
+            builder: (navContext) => BottomNavigationBar(
+              backgroundColor: AppTheme.primaryColor,
+              selectedItemColor: Colors.white,
+              unselectedItemColor: Colors.white70,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.home),
+                  label: 'Списки',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.add),
+                  label: 'Задача',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.calendar_today),
+                  label: 'Календарь',
+                ),
+              ],
+              onTap: (index) {
+                if (index == 0) {
+                  Navigator.push(
+                    navContext,
+                    MaterialPageRoute(builder: (_) => const ListHomeScreen()),
+                  );
+                } else if (index == 1) {
+                  final state = navContext.read<ListBloc>().state;
+                  if (state is ListLoaded && state.lists.isNotEmpty) {
+                    final listId = state.selectedListId ?? state.lists.first.id;
+                    _showAddTaskBottomSheet(navContext, listId);
+                  } else {
+                    ScaffoldMessenger.of(navContext).showSnackBar(
+                      const SnackBar(content: Text('Сначала создайте или выберите список')),
+                    );
+                  }
+                } else if (index == 2) {
+                  // Заглушка для calendar_screen
                 }
-              } else if (index == 2) {
-                // Заглушка для calendar_screen
-              }
-            },
+              },
+            ),
           ),
         ),
       ),
