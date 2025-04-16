@@ -1,74 +1,48 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
+import 'package:uuid/uuid.dart';
 
 class Task extends Equatable {
   final String id;
   final String title;
   final String? description;
   final String listId;
+  final String ownerId;
+  final Timestamp createdAt;
   final Timestamp? deadline;
   final String? priority;
-  final String ownerId;
   final String assignedTo;
   final bool isCompleted;
   final bool isFavorite;
-  final Timestamp createdAt;
 
   Task({
-    required this.id,
+    String? id,
     required this.title,
     this.description,
     required this.listId,
+    required this.ownerId,
+    Timestamp? createdAt,
     this.deadline,
     this.priority,
-    required this.ownerId,
     required this.assignedTo,
     required this.isCompleted,
     required this.isFavorite,
-    required this.createdAt,
-  });
-
-  Task copyWith({
-    String? id,
-    String? title,
-    String? description,
-    String? listId,
-    Timestamp? deadline,
-    String? priority,
-    String? ownerId,
-    String? assignedTo,
-    bool? isCompleted,
-    bool? isFavorite,
-    Timestamp? createdAt,
-  }) {
-    return Task(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      description: description ?? this.description,
-      listId: listId ?? this.listId,
-      deadline: deadline ?? this.deadline,
-      priority: priority ?? this.priority,
-      ownerId: ownerId ?? this.ownerId,
-      assignedTo: assignedTo ?? this.assignedTo,
-      isCompleted: isCompleted ?? this.isCompleted,
-      isFavorite: isFavorite ?? this.isFavorite,
-      createdAt: createdAt ?? this.createdAt,
-    );
-  }
+  })  : id = id ?? const Uuid().v4(),
+        createdAt = createdAt ?? Timestamp.now();
 
   factory Task.fromMap(Map<String, dynamic> map) {
     return Task(
-      id: map['id'] ?? '',
+      id: map['id'] ?? const Uuid().v4(),
       title: map['title'] ?? '',
       description: map['description'],
       listId: map['listId'] ?? '',
+      ownerId: map['ownerId'] ?? '',
+      createdAt: map['createdAt'] ?? Timestamp.now(),
       deadline: map['deadline'],
       priority: map['priority'],
-      ownerId: map['ownerId'] ?? '',
       assignedTo: map['assignedTo'] ?? '',
       isCompleted: map['isCompleted'] ?? false,
       isFavorite: map['isFavorite'] ?? false,
-      createdAt: map['createdAt'] ?? Timestamp.now(),
     );
   }
 
@@ -78,14 +52,42 @@ class Task extends Equatable {
       'title': title,
       'description': description,
       'listId': listId,
+      'ownerId': ownerId,
+      'createdAt': createdAt,
       'deadline': deadline,
       'priority': priority,
-      'ownerId': ownerId,
       'assignedTo': assignedTo,
       'isCompleted': isCompleted,
       'isFavorite': isFavorite,
-      'createdAt': createdAt,
     };
+  }
+
+  Task copyWith({
+    String? id,
+    String? title,
+    String? description,
+    String? listId,
+    String? ownerId,
+    Timestamp? createdAt,
+    Timestamp? deadline,
+    String? priority,
+    String? assignedTo,
+    bool? isCompleted,
+    bool? isFavorite,
+  }) {
+    return Task(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      description: description ?? this.description,
+      listId: listId ?? this.listId,
+      ownerId: ownerId ?? this.ownerId,
+      createdAt: createdAt ?? this.createdAt,
+      deadline: deadline ?? this.deadline,
+      priority: priority ?? this.priority,
+      assignedTo: assignedTo ?? this.assignedTo,
+      isCompleted: isCompleted ?? this.isCompleted,
+      isFavorite: isFavorite ?? this.isFavorite,
+    );
   }
 
   @override
@@ -94,12 +96,12 @@ class Task extends Equatable {
     title,
     description,
     listId,
+    ownerId,
+    createdAt,
     deadline,
     priority,
-    ownerId,
     assignedTo,
     isCompleted,
     isFavorite,
-    createdAt,
   ];
 }

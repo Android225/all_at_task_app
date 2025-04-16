@@ -1,4 +1,5 @@
 import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
+import 'package:all_at_task/presentation/bloc/invitation/invitation_bloc.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
 import 'package:all_at_task/router/app_router.dart';
@@ -11,4 +12,5 @@ void setupServiceLocator() {
   getIt.registerFactory<AuthBloc>(() => AuthBloc());
   getIt.registerFactory<TaskBloc>(() => TaskBloc());
   getIt.registerFactory<ListBloc>(() => ListBloc());
+  getIt.registerFactory<InvitationBloc>(() => InvitationBloc());
 }
