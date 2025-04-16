@@ -1,6 +1,6 @@
-import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
+import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/screens/home/home_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,25 +32,30 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                 itemCount: state.lists.length,
                 itemBuilder: (context, index) {
                   final list = state.lists[index];
-                  return Card(
-                    elevation: 2,
-                    child: ListTile(
-                      title: Text(list.name),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          context.read<ListBloc>().add(DeleteList(list.id));
+                  return SizedBox(
+                    height: 60,
+                    child: Card(
+                      elevation: 2,
+                      child: ListTile(
+                        title: Text(
+                          list.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          onPressed: () {
+                            context.read<ListBloc>().add(DeleteList(list.id));
+                          },
+                        ),
+                        onTap: () {
+                          context.read<ListBloc>().add(SelectList(list.id));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const HomeScreen()),
+                          );
                         },
                       ),
-                      onTap: () {
-                        context.read<ListBloc>().add(SelectList(list.id));
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const HomeScreen(),
-                          ),
-                        );
-                      },
                     ),
                   );
                 },
@@ -61,14 +66,10 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             return const Center(child: Text('Нет списков'));
           },
         ),
-        floatingActionButton: Builder(
-          builder: (fabContext) {
-            return FloatingActionButton(
-              backgroundColor: AppTheme.primaryColor,
-              onPressed: () => _showAddListBottomSheet(fabContext),
-              child: const Icon(Icons.add),
-            );
-          },
+        floatingActionButton: FloatingActionButton(
+          backgroundColor: AppTheme.primaryColor,
+          onPressed: () => _showAddListBottomSheet(context),
+          child: const Icon(Icons.add),
         ),
       ),
     );
@@ -76,10 +77,9 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
 
   void _showAddListBottomSheet(BuildContext context) {
     final nameController = TextEditingController();
-
     showModalBottomSheet(
       context: context,
-      builder: (bottomSheetContext) {
+      builder: (context) {
         return Padding(
           padding: const EdgeInsets.all(AppTheme.defaultPadding),
           child: Column(
@@ -87,7 +87,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             children: [
               Text(
                 'Новый список',
-                style: Theme.of(bottomSheetContext).textTheme.titleLarge,
+                style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 16),
               TextField(
@@ -99,7 +99,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                 onPressed: () {
                   if (nameController.text.isNotEmpty) {
                     context.read<ListBloc>().add(AddList(nameController.text));
-                    Navigator.pop(bottomSheetContext);
+                    Navigator.pop(context);
                   }
                 },
                 child: const Text('Создать'),

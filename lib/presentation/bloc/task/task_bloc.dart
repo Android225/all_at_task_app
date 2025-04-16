@@ -46,6 +46,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         priority: event.priority,
         createdBy: userId,
         assignedTo: userId,
+        createdAt: Timestamp.now(),
       );
       await _firestore.collection('tasks').doc(task.id).set(task.toMap());
       add(LoadTasks(event.listId));

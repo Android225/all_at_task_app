@@ -7,6 +7,7 @@ import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -74,7 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       context: bottomSheetContext,
                       initialDate: DateTime.now(),
                       firstDate: DateTime.now(),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                      lastDate: DateTime(2030),
                     );
                     if (date != null) {
                       setState(() => selectedDate = date);
@@ -186,23 +187,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 ListTile(
                   title: const Text('Профиль'),
-                  onTap: () {}, // Заглушка
+                  onTap: () {},
                 ),
                 ListTile(
                   title: const Text('Друзья'),
-                  onTap: () {}, // Заглушка
+                  onTap: () {},
                 ),
                 ListTile(
                   title: const Text('Избранное'),
-                  onTap: () {}, // Заглушка
+                  onTap: () {},
                 ),
                 ListTile(
                   title: const Text('Настройки'),
-                  onTap: () {}, // Заглушка
+                  onTap: () {},
                 ),
                 ListTile(
                   title: const Text('Приглашения'),
-                  onTap: () {}, // Заглушка
+                  onTap: () {},
                 ),
               ],
             ),
@@ -218,30 +219,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemCount: state.tasks.length,
                       itemBuilder: (context, index) {
                         final task = state.tasks[index];
-                        return Dismissible(
-                          key: Key(task.id),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            color: Colors.red,
-                            alignment: Alignment.centerRight,
-                            padding: const EdgeInsets.only(right: 16),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
+                        return ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Slidable(
+                            key: Key(task.id),
+                            endActionPane: ActionPane(
+                              motion: const ScrollMotion(),
                               children: [
-                                IconButton(
-                                  icon: Icon(
-                                    Icons.star,
-                                    color: task.isFavorite ? Colors.yellow : Colors.white,
-                                  ),
-                                  onPressed: () {
+                                SlidableAction(
+                                  onPressed: (_) {
                                     context.read<TaskBloc>().add(UpdateTask(
                                       task.copyWith(isFavorite: !task.isFavorite),
                                     ));
                                   },
+                                  backgroundColor: Colors.yellow,
+                                  icon: Icons.star,
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.calendar_today, color: Colors.white),
-                                  onPressed: () async {
+                                SlidableAction(
+                                  onPressed: (_) async {
                                     final date = await showDatePicker(
                                       context: context,
                                       initialDate: task.deadline?.toDate() ?? DateTime.now(),
@@ -250,60 +245,59 @@ class _HomeScreenState extends State<HomeScreen> {
                                     );
                                     if (date != null) {
                                       context.read<TaskBloc>().add(UpdateTask(
-                                        task.copyWith(
-                                          deadline: Timestamp.fromDate(date),
-                                        ),
+                                        task.copyWith(deadline: Timestamp.fromDate(date)),
                                       ));
                                     }
                                   },
+                                  backgroundColor: Colors.blue,
+                                  icon: Icons.calendar_today,
                                 ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete, color: Colors.white),
-                                  onPressed: () {
+                                SlidableAction(
+                                  onPressed: (_) {
                                     context.read<TaskBloc>().add(DeleteTask(task.id, task.listId));
                                   },
+                                  backgroundColor: Colors.red,
+                                  icon: Icons.delete,
                                 ),
                               ],
                             ),
-                          ),
-                          child: Card(
-                            color: task.isCompleted ? Colors.grey[300] : Colors.white,
-                            child: ListTile(
-                              leading: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Checkbox(
-                                    value: task.isCompleted,
-                                    onChanged: (value) {
-                                      context.read<TaskBloc>().add(UpdateTask(
-                                        task.copyWith(isCompleted: value ?? false),
-                                      ));
-                                    },
-                                  ),
-                                  const CircleAvatar(
-                                    backgroundImage: AssetImage('assets/cat.png'),
-                                  ),
-                                ],
-                              ),
-                              title: Text(
-                                task.title,
-                                style: TextStyle(
-                                  decoration: task.isCompleted
-                                      ? TextDecoration.lineThrough
-                                      : null,
+                            child: Card(
+                              color: task.isCompleted ? Colors.grey[300] : Colors.white,
+                              child: ListTile(
+                                leading: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Checkbox(
+                                      value: task.isCompleted,
+                                      onChanged: (value) {
+                                        context.read<TaskBloc>().add(UpdateTask(
+                                          task.copyWith(isCompleted: value ?? false),
+                                        ));
+                                      },
+                                    ),
+                                    const CircleAvatar(
+                                      backgroundImage: AssetImage('assets/cat.png'),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(task.createdBy == state.userId ? 'Вы' : 'Другой'),
-                                  if (task.priority != null) Text('Приоритет: ${task.priority}'),
-                                ],
-                              ),
-                              trailing: Text(
-                                task.deadline != null
-                                    ? DateFormat('dd.MM').format(task.deadline!.toDate())
-                                    : '',
+                                title: Text(
+                                  task.title,
+                                  style: TextStyle(
+                                    decoration: task.isCompleted ? TextDecoration.lineThrough : null,
+                                  ),
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(task.createdBy == state.userId ? 'Вы' : 'Другой'),
+                                    if (task.priority != null) Text('Приоритет: ${task.priority}'),
+                                  ],
+                                ),
+                                trailing: Text(
+                                  task.deadline != null
+                                      ? DateFormat('dd.MM').format(task.deadline!.toDate())
+                                      : '',
+                                ),
                               ),
                             ),
                           ),

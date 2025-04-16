@@ -11,7 +11,7 @@ class LoadTasks extends TaskEvent {
 class AddTask extends TaskEvent {
   final String title;
   final String? description;
-  final DateTime? deadline; // Изменено на DateTime?
+  final DateTime? deadline;
   final String listId;
   final String priority;
 
