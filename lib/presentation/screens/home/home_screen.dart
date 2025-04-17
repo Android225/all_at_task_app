@@ -79,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[100], // Заменили Colors.grey на константное значение
+                        fillColor: Colors.grey[100],
                       ),
                       onChanged: (_) => bottomSheetSetState(() {}),
                     ),
@@ -92,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[100], // Заменили Colors.grey на константное значение
+                        fillColor: Colors.grey[100],
                       ),
                       maxLines: 3,
                       onChanged: (_) => bottomSheetSetState(() {}),
@@ -106,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[100], // Заменили Colors.grey на константное значение
+                        fillColor: Colors.grey[100],
                       ),
                       items: ['low', 'medium', 'high']
                           .map((p) => DropdownMenuItem(value: p, child: Text(p)))
@@ -158,13 +158,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         final userId =
                             FirebaseAuth.instance.currentUser?.uid ?? '';
                         if (userId.isEmpty) {
-                          ScaffoldMessenger.of(scaffoldContext)
-                              .showSnackBar(
+                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                             const SnackBar(
                                 content: Text('Пользователь не авторизован')),
                           );
                           return;
                         }
+                        print('Adding task: ${_titleController.text}, listId: $listId');
                         scaffoldContext.read<TaskBloc>().add(AddTask(
                           title: _titleController.text,
                           description: _descriptionController.text.isEmpty
@@ -201,6 +201,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    print('HomeScreen: Building with userId: $userId');
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => getIt<TaskBloc>()),
@@ -220,6 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             title: BlocBuilder<ListBloc, ListState>(
               builder: (context, state) {
+                print('HomeScreen: ListBloc state: $state');
                 if (state is ListLoaded && state.lists.isNotEmpty) {
                   return SizedBox(
                     height: 40,
@@ -233,6 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: GestureDetector(
                             onTap: () {
+                              print('HomeScreen: Selecting list: ${list.id}');
                               context
                                   .read<ListBloc>()
                                   .add(UpdateListLastUsed(list.id));
@@ -307,6 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 listeners: [
                   BlocListener<ListBloc, ListState>(
                     listener: (context, state) {
+                      print('HomeScreen: ListBloc listener: $state');
                       if (state is ListLoaded &&
                           state.lists.isNotEmpty &&
                           !_isInitialSelectionDone) {
@@ -314,6 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               (list) => list.name.toLowerCase().trim() == 'основной',
                           orElse: () => state.lists.first,
                         );
+                        print('HomeScreen: Auto-selecting main list: ${mainList.id}');
                         context.read<ListBloc>().add(SelectList(mainList.id));
                         context.read<TaskBloc>().add(LoadTasks(mainList.id));
                         _isInitialSelectionDone = true;
@@ -326,6 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   BlocListener<TaskBloc, TaskState>(
                     listener: (context, state) {
+                      print('HomeScreen: TaskBloc listener: $state');
                       if (state is TaskError) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text(state.message)),
@@ -338,6 +344,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context, listState) {
                     return BlocBuilder<TaskBloc, TaskState>(
                       builder: (context, taskState) {
+                        print('HomeScreen: TaskBloc state: $taskState');
                         if (_isSearchVisible &&
                             _searchController.text.isNotEmpty) {
                           context
@@ -355,6 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         title: Text(result.name),
                                         subtitle: Text('${result.name}/'),
                                         onTap: () {
+                                          print('HomeScreen: Selected search list: ${result.id}');
                                           context
                                               .read<ListBloc>()
                                               .add(UpdateListLastUsed(result.id));
@@ -378,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         subtitle:
                                         Text('${list.name}/${result.title}'),
                                         onTap: () {
+                                          print('HomeScreen: Selected search task from list: ${result.listId}');
                                           context
                                               .read<ListBloc>()
                                               .add(UpdateListLastUsed(
@@ -431,6 +440,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               onRefresh: () async {
                                 final taskBloc = context.read<TaskBloc>();
                                 if (listState.selectedListId != null) {
+                                  print('HomeScreen: Refreshing tasks for list: ${listState.selectedListId}');
                                   taskBloc
                                       .add(LoadTasks(listState.selectedListId!));
                                 }
@@ -455,6 +465,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         children: [
                                           SlidableAction(
                                             onPressed: (_) {
+                                              print('HomeScreen: Toggling favorite for task: ${task.id}');
                                               context
                                                   .read<TaskBloc>()
                                                   .add(UpdateTask(
@@ -480,6 +491,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 lastDate: DateTime(2030),
                                               );
                                               if (date != null) {
+                                                print('HomeScreen: Updating deadline for task: ${task.id}');
                                                 context
                                                     .read<TaskBloc>()
                                                     .add(UpdateTask(
@@ -497,6 +509,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                           SlidableAction(
                                             onPressed: (_) {
+                                              print('HomeScreen: Deleting task: ${task.id}');
                                               context.read<TaskBloc>().add(
                                                   DeleteTask(
                                                       task.id, task.listId));
@@ -525,6 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Checkbox(
                                                 value: task.isCompleted,
                                                 onChanged: (value) {
+                                                  print('HomeScreen: Updating completion for task: ${task.id}');
                                                   context
                                                       .read<TaskBloc>()
                                                       .add(UpdateTask(
@@ -618,6 +632,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             border: OutlineInputBorder(),
                           ),
                           onChanged: (value) {
+                            print('HomeScreen: Searching for: $value');
                             context
                                 .read<ListBloc>()
                                 .add(SearchListsAndTasks(value));
@@ -650,14 +665,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
               onTap: (index) {
                 if (index == 0) {
+                  print('HomeScreen: Navigating to ListHomeScreen');
                   Navigator.push(
                     navContext,
-                    MaterialPageRoute(builder: (_) => const ListHomeScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => BlocProvider.value(
+                        value: navContext.read<ListBloc>(),
+                        child: ListHomeScreen(userId: userId),
+                      ),
+                    ),
                   );
                 } else if (index == 1) {
                   final state = navContext.read<ListBloc>().state;
                   if (state is ListLoaded && state.lists.isNotEmpty) {
                     final listId = state.selectedListId ?? state.lists.first.id;
+                    print('HomeScreen: Opening add task for list: $listId');
                     _showAddTaskBottomSheet(navContext, listId);
                   } else {
                     ScaffoldMessenger.of(navContext).showSnackBar(

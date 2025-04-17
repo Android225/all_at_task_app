@@ -17,8 +17,8 @@ void main() async {
   await FirebaseAppCheck.instance.activate(
     androidProvider: AndroidProvider.debug, // Используйте playIntegrity в продакшене
   );
-  // Очищаем сессию для отладки (удалите в продакшене)
-  await FirebaseAuth.instance.signOut();
+  // Очищаем сессию для отладки (удалить в продакшене!!!!!!!!!!!!!!!)
+  await FirebaseAuth.instance.signOut(); //-
   setupServiceLocator();
   runApp(const MyApp());
 }

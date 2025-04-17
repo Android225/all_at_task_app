@@ -6,75 +6,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:uuid/uuid.dart';
 
-class ListHomeScreen extends StatelessWidget {
-  const ListHomeScreen({super.key});
+class ListHomeScreen extends StatefulWidget {
+  final String userId;
+
+  const ListHomeScreen({super.key, required this.userId});
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
-        title: const Text('Мои списки'),
-      ),
-      body: BlocBuilder<ListBloc, ListState>(
-        builder: (context, state) {
-          if (state is ListLoading) {
-            return const Center(child: CircularProgressIndicator());
-          } else if (state is ListLoaded) {
-            return ListView.builder(
-              itemCount: state.lists.length,
-              itemBuilder: (context, index) {
-                final list = state.lists[index];
-                return ListTile(
-                  title: Text(
-                    list.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BlocProvider.value(
-                                value: context.read<ListBloc>(),
-                                child: ListEditScreen(list: list),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          context.read<ListBloc>().add(DeleteList(list.id));
-                        },
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    context.read<ListBloc>().add(SelectList(list.id));
-                    Navigator.pushNamed(context, '/home', arguments: list.id);
-                  },
-                );
-              },
-            );
-          } else if (state is ListError) {
-            return Center(child: Text('Ошибка: ${state.message}'));
-          }
-          return const Center(child: Text('Нет списков'));
-        },
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateListDialog(context),
-        backgroundColor: AppTheme.primaryColor,
-        child: const Icon(Icons.add),
-      ),
-    );
+  State<ListHomeScreen> createState() => _ListHomeScreenState();
+}
+
+class _ListHomeScreenState extends State<ListHomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    print('ListHomeScreen: Loading lists for user ${widget.userId}');
+    context.read<ListBloc>().add(LoadLists(userId: widget.userId));
   }
 
   void _showCreateListDialog(BuildContext context) {
@@ -166,17 +112,18 @@ class ListHomeScreen extends StatelessWidget {
                   onPressed: () {
                     if (nameController.text.isNotEmpty) {
                       final newList = TaskList(
-                        id: const Uuid().v4(), // Генерация уникального ID
+                        id: const Uuid().v4(),
                         name: nameController.text,
-                        ownerId: context.read<ListBloc>().state.userId,
+                        ownerId: widget.userId,
                         description: descriptionController.text.isNotEmpty
                             ? descriptionController.text
                             : null,
                         color: selectedColor ?? 0xFF2196F3,
                         createdAt: DateTime.now(),
-                        members: {},
+                        members: {widget.userId: 'owner'},
                         sharedLists: [],
                       );
+                      print('ListHomeScreen: Adding list: ${newList.name}');
                       context.read<ListBloc>().add(AddList(newList));
                       Navigator.pop(context);
                     }
@@ -188,6 +135,80 @@ class ListHomeScreen extends StatelessWidget {
           },
         );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppTheme.primaryColor,
+        title: const Text('Мои списки'),
+      ),
+      body: BlocBuilder<ListBloc, ListState>(
+        builder: (context, state) {
+          print('ListHomeScreen: Current state: $state');
+          if (state is ListLoading) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (state is ListLoaded) {
+            print('ListHomeScreen: Loaded ${state.lists.length} lists');
+            return ListView.builder(
+              itemCount: state.lists.length,
+              itemBuilder: (context, index) {
+                final list = state.lists[index];
+                return ListTile(
+                  title: Text(
+                    list.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Colors.blue),
+                        onPressed: () {
+                          print('ListHomeScreen: Editing list: ${list.id}');
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BlocProvider.value(
+                                value: context.read<ListBloc>(),
+                                child: ListEditScreen(list: list),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        onPressed: () {
+                          print('ListHomeScreen: Deleting list: ${list.id}');
+                          context.read<ListBloc>().add(DeleteList(list.id));
+                        },
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    print('ListHomeScreen: Selecting list: ${list.id}');
+                    context.read<ListBloc>().add(SelectList(list.id));
+                    Navigator.pushNamed(context, '/home', arguments: list.id);
+                  },
+                );
+              },
+            );
+          } else if (state is ListError) {
+            print('ListHomeScreen: Error: ${state.message}');
+            return Center(child: Text('Ошибка: ${state.message}'));
+          }
+          return const Center(child: Text('Нет списков'));
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _showCreateListDialog(context),
+        backgroundColor: AppTheme.primaryColor,
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }

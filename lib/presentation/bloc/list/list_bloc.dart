@@ -27,11 +27,12 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           ? event.userId
           : FirebaseAuth.instance.currentUser?.uid ?? '';
       if (userId.isEmpty) {
+        print('ListBloc: User not authenticated');
         emit(ListError('Пользователь не авторизован'));
         return;
       }
 
-      // Загрузка списков, где пользователь является владельцем
+      print('ListBloc: Loading lists for user $userId');
       final ownerSnapshot = await FirebaseFirestore.instance
           .collection('lists')
           .where('ownerId', isEqualTo: userId)
@@ -41,7 +42,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id))
           .toList();
 
-      // Загрузка списков, где пользователь является участником
       final memberSnapshot = await FirebaseFirestore.instance
           .collection('lists')
           .where('members.$userId', isNotEqualTo: null)
@@ -52,14 +52,17 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .toList();
 
       final allLists = [...ownerLists, ...memberLists];
+      print('ListBloc: Loaded ${allLists.length} lists');
       emit(ListLoaded(lists: allLists, userId: userId));
     } catch (e) {
+      print('ListBloc: Error loading lists: $e');
       emit(ListError('Не удалось загрузить списки: $e'));
     }
   }
 
   Future<void> _onAddList(AddList event, Emitter<ListState> emit) async {
     try {
+      print('ListBloc: Adding list: ${event.list.name}');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.list.id)
@@ -72,12 +75,14 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         ));
       }
     } catch (e) {
+      print('ListBloc: Error adding list: $e');
       emit(ListError('Не удалось создать список: $e'));
     }
   }
 
   Future<void> _onUpdateList(UpdateList event, Emitter<ListState> emit) async {
     try {
+      print('ListBloc: Updating list: ${event.list.id}');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.list.id)
@@ -90,12 +95,14 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         emit(ListLoaded(lists: updatedLists, userId: currentState.userId));
       }
     } catch (e) {
+      print('ListBloc: Error updating list: $e');
       emit(ListError('Не удалось обновить список: $e'));
     }
   }
 
   Future<void> _onDeleteList(DeleteList event, Emitter<ListState> emit) async {
     try {
+      print('ListBloc: Deleting list: ${event.listId}');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
@@ -107,11 +114,13 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         emit(ListLoaded(lists: updatedLists, userId: currentState.userId));
       }
     } catch (e) {
+      print('ListBloc: Error deleting list: $e');
       emit(ListError('Не удалось удалить список: $e'));
     }
   }
 
   Future<void> _onSelectList(SelectList event, Emitter<ListState> emit) async {
+    print('ListBloc: Selecting list: ${event.listId}');
     if (state is ListLoaded) {
       final currentState = state as ListLoaded;
       emit(ListLoaded(
@@ -125,6 +134,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onUpdateListLastUsed(
       UpdateListLastUsed event, Emitter<ListState> emit) async {
     try {
+      print('ListBloc: Updating last used for list: ${event.listId}');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
@@ -144,6 +154,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         ));
       }
     } catch (e) {
+      print('ListBloc: Error updating last used: $e');
       emit(ListError('Не удалось обновить время использования: $e'));
     }
   }
@@ -152,6 +163,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       SearchListsAndTasks event, Emitter<ListState> emit) async {
     if (event.query.isEmpty) {
       if (state is ListLoaded) {
+        print('ListBloc: Empty search query, restoring state');
         emit(state as ListLoaded);
       }
       return;
@@ -161,11 +173,12 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           ? state.userId
           : FirebaseAuth.instance.currentUser?.uid ?? '';
       if (userId.isEmpty) {
+        print('ListBloc: User not authenticated for search');
         emit(ListError('Пользователь не авторизован'));
         return;
       }
 
-      // Поиск списков
+      print('ListBloc: Searching for: ${event.query}');
       final listsSnapshot = await FirebaseFirestore.instance
           .collection('lists')
           .where('ownerId', isEqualTo: userId)
@@ -183,7 +196,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           list.name.toLowerCase().contains(event.query.toLowerCase()))
           .toList();
 
-      // Поиск задач
       final tasksSnapshot = await FirebaseFirestore.instance
           .collection('tasks')
           .where('ownerId', isEqualTo: userId)
@@ -195,12 +207,14 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .toList();
 
       final results = [...matchingLists, ...tasks];
+      print('ListBloc: Found ${results.length} search results');
       emit(ListSearchResults(
         results: results,
         lists: allLists,
         userId: userId,
       ));
     } catch (e) {
+      print('ListBloc: Error searching: $e');
       emit(ListError('Не удалось выполнить поиск: $e'));
     }
   }
@@ -208,6 +222,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onUpdateMemberRole(
       UpdateMemberRole event, Emitter<ListState> emit) async {
     try {
+      print('ListBloc: Updating member role for user ${event.userId} in list ${event.listId}');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
@@ -231,6 +246,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         ));
       }
     } catch (e) {
+      print('ListBloc: Error updating member role: $e');
       emit(ListError('Не удалось обновить роль участника: $e'));
     }
   }
