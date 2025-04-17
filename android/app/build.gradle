@@ -54,4 +54,5 @@ flutter {
         implementation 'com.google.firebase:firebase-storage'
         implementation 'androidx.multidex:multidex:2.0.1'
         implementation 'com.google.android.gms:play-services-base:18.6.0'
+
     }

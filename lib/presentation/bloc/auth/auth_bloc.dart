@@ -56,20 +56,27 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       final user = userCredential.user;
       if (user != null) {
+        // Обновляем displayName в FirebaseAuth
+        await user.updateDisplayName(event.name);
+
+        // Сохраняем полные данные пользователя в Firestore
         await _firestore.collection('users').doc(user.uid).set({
           'email': event.email,
+          'name': event.name,
+          'username': event.username,
           'createdAt': FieldValue.serverTimestamp(),
         });
-        // Создаём список "Основной" для нового пользователя
+
+        // Создаем список "Основной" для нового пользователя
         final listId = const Uuid().v4();
         await _firestore.collection('lists').doc(listId).set({
           'id': listId,
           'name': 'Основной',
           'ownerId': user.uid,
-          'members': {user.uid: 'admin'},
           'createdAt': FieldValue.serverTimestamp(),
+          'members': {user.uid: 'admin'},
         });
-        // После регистрации эмитим AuthSignUpSuccess вместо AuthSuccess
+
         emit(AuthSignUpSuccess());
       } else {
         emit(const AuthError('Ошибка регистрации: пользователь не создан'));

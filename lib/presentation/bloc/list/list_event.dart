@@ -1,53 +1,82 @@
 part of 'list_bloc.dart';
 
-@immutable
-sealed class ListEvent {}
+abstract class ListEvent extends Equatable {
+  const ListEvent();
 
-final class LoadLists extends ListEvent {}
-
-final class AddList extends ListEvent {
-  final String name;
-  final String? description;
-  final int color;
-  final List<String> sharedLists;
-
-  AddList(this.name, {this.description, this.color = 0xFF2196F3, this.sharedLists = const []});
+  @override
+  List<Object> get props => [];
 }
 
-final class SelectList extends ListEvent {
-  final String listId;
-  SelectList(this.listId);
+class LoadLists extends ListEvent {
+  final String userId;
+
+  const LoadLists({this.userId = ''});
+
+  @override
+  List<Object> get props => [userId];
 }
 
-final class DeleteList extends ListEvent {
-  final String listId;
-  DeleteList(this.listId);
-}
-
-final class SearchListsAndTasks extends ListEvent {
-  final String query;
-  SearchListsAndTasks(this.query);
-}
-
-final class UpdateListLastUsed extends ListEvent {
-  final String listId;
-  UpdateListLastUsed(this.listId);
-}
-
-final class UpdateList extends ListEvent {
+class AddList extends ListEvent {
   final TaskList list;
-  UpdateList(this.list);
+
+  const AddList(this.list);
+
+  @override
+  List<Object> get props => [list];
 }
 
-final class InviteToList extends ListEvent {
+class UpdateList extends ListEvent {
+  final TaskList list;
+
+  const UpdateList(this.list);
+
+  @override
+  List<Object> get props => [list];
+}
+
+class DeleteList extends ListEvent {
   final String listId;
-  final String inviteeId;
-  InviteToList(this.listId, this.inviteeId);
+
+  const DeleteList(this.listId);
+
+  @override
+  List<Object> get props => [listId];
 }
 
-final class UpdateMemberRole extends ListEvent {
+class SelectList extends ListEvent {
+  final String listId;
+
+  const SelectList(this.listId);
+
+  @override
+  List<Object> get props => [listId];
+}
+
+class UpdateListLastUsed extends ListEvent {
+  final String listId;
+
+  const UpdateListLastUsed(this.listId);
+
+  @override
+  List<Object> get props => [listId];
+}
+
+class SearchListsAndTasks extends ListEvent {
+  final String query;
+
+  const SearchListsAndTasks(this.query);
+
+  @override
+  List<Object> get props => [query];
+}
+
+class UpdateMemberRole extends ListEvent {
   final String listId;
   final String userId;
   final String role;
-  UpdateMemberRole(this.listId, this.userId, this.role);
+
+  const UpdateMemberRole(this.listId, this.userId, this.role);
+
+  @override
+  List<Object> get props => [listId, userId, role];
 }

@@ -6,6 +6,7 @@ import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
 import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
@@ -61,7 +62,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   children: [
                     Text(
                       'Новая задача',
-                      style: Theme.of(bottomSheetContext).textTheme.titleLarge?.copyWith(
+                      style: Theme.of(bottomSheetContext)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,
@@ -75,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[100],
+                        fillColor: Colors.grey[100], // Заменили Colors.grey на константное значение
                       ),
                       onChanged: (_) => bottomSheetSetState(() {}),
                     ),
@@ -88,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[100],
+                        fillColor: Colors.grey[100], // Заменили Colors.grey на константное значение
                       ),
                       maxLines: 3,
                       onChanged: (_) => bottomSheetSetState(() {}),
@@ -102,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[100],
+                        fillColor: Colors.grey[100], // Заменили Colors.grey на константное значение
                       ),
                       items: ['low', 'medium', 'high']
                           .map((p) => DropdownMenuItem(value: p, child: Text(p)))
@@ -151,14 +155,30 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: _titleController.text.isEmpty
                           ? null
                           : () {
+                        final userId =
+                            FirebaseAuth.instance.currentUser?.uid ?? '';
+                        if (userId.isEmpty) {
+                          ScaffoldMessenger.of(scaffoldContext)
+                              .showSnackBar(
+                            const SnackBar(
+                                content: Text('Пользователь не авторизован')),
+                          );
+                          return;
+                        }
                         scaffoldContext.read<TaskBloc>().add(AddTask(
                           title: _titleController.text,
                           description: _descriptionController.text.isEmpty
                               ? null
                               : _descriptionController.text,
-                          deadline: _selectedDate,
+                          deadline: _selectedDate != null
+                              ? Timestamp.fromDate(_selectedDate!)
+                              : null,
                           listId: listId,
                           priority: _selectedPriority,
+                          ownerId: userId,
+                          assignedTo: userId,
+                          isCompleted: false,
+                          isFavorite: false,
                         ));
                         Navigator.pop(bottomSheetContext);
                       },
@@ -180,14 +200,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final String? selectedListId = ModalRoute.of(context)?.settings.arguments as String?;
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => getIt<TaskBloc>()),
-        BlocProvider(create: (_) => getIt<ListBloc>()..add(LoadLists())),
+        BlocProvider(
+            create: (_) => getIt<ListBloc>()..add(LoadLists(userId: userId))),
       ],
-      child: WillPopScope(
-        onWillPop: () async => false,
+      child: PopScope(
+        canPop: false,
         child: Scaffold(
           appBar: AppBar(
             backgroundColor: AppTheme.primaryColor,
@@ -199,7 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             title: BlocBuilder<ListBloc, ListState>(
               builder: (context, state) {
-                if (state is ListLoaded) {
+                if (state is ListLoaded && state.lists.isNotEmpty) {
                   return SizedBox(
                     height: 40,
                     child: ListView.builder(
@@ -207,12 +228,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       itemCount: state.lists.length,
                       itemBuilder: (context, index) {
                         final list = state.lists[index];
-                        final isSelected = list.id == (selectedListId ?? state.selectedListId);
+                        final isSelected = list.id == state.selectedListId;
                         return Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 8),
                           child: GestureDetector(
                             onTap: () {
-                              context.read<ListBloc>().add(UpdateListLastUsed(list.id));
+                              context
+                                  .read<ListBloc>()
+                                  .add(UpdateListLastUsed(list.id));
                               context.read<ListBloc>().add(SelectList(list.id));
                               context.read<TaskBloc>().add(LoadTasks(list.id));
                             },
@@ -231,7 +254,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                 }
-                return const SizedBox();
+                return const Text('Нет списков');
               },
             ),
             actions: [
@@ -250,10 +273,13 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListView(
               children: [
                 DrawerHeader(
-                  decoration: BoxDecoration(color: AppTheme.primaryColor),
+                  decoration: const BoxDecoration(color: AppTheme.primaryColor),
                   child: Text(
                     'Меню',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(color: Colors.white),
                   ),
                 ),
                 ListTile(
@@ -281,28 +307,29 @@ class _HomeScreenState extends State<HomeScreen> {
                 listeners: [
                   BlocListener<ListBloc, ListState>(
                     listener: (context, state) {
-                      if (state is ListLoaded && state.lists.isNotEmpty && !_isInitialSelectionDone) {
+                      if (state is ListLoaded &&
+                          state.lists.isNotEmpty &&
+                          !_isInitialSelectionDone) {
                         final mainList = state.lists.firstWhere(
                               (list) => list.name.toLowerCase().trim() == 'основной',
                           orElse: () => state.lists.first,
                         );
-                        if (selectedListId == null) {
-                          context.read<ListBloc>().add(SelectList(mainList.id));
-                          context.read<TaskBloc>().add(LoadTasks(mainList.id));
-                        } else {
-                          context.read<ListBloc>().add(SelectList(selectedListId));
-                          context.read<TaskBloc>().add(LoadTasks(selectedListId));
-                        }
+                        context.read<ListBloc>().add(SelectList(mainList.id));
+                        context.read<TaskBloc>().add(LoadTasks(mainList.id));
                         _isInitialSelectionDone = true;
+                      } else if (state is ListError) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(state.message)),
+                        );
                       }
                     },
                   ),
                   BlocListener<TaskBloc, TaskState>(
                     listener: (context, state) {
-                      if (state is TaskLoaded) {
-                        print('Tasks loaded: ${state.tasks.map((t) => t.title).toList()}');
-                      } else if (state is TaskError) {
-                        print('Task error: ${state.message}');
+                      if (state is TaskError) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(state.message)),
+                        );
                       }
                     },
                   ),
@@ -311,8 +338,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (context, listState) {
                     return BlocBuilder<TaskBloc, TaskState>(
                       builder: (context, taskState) {
-                        if (_isSearchVisible && _searchController.text.isNotEmpty) {
-                          context.read<ListBloc>().add(SearchListsAndTasks(_searchController.text));
+                        if (_isSearchVisible &&
+                            _searchController.text.isNotEmpty) {
+                          context
+                              .read<ListBloc>()
+                              .add(SearchListsAndTasks(_searchController.text));
                           return BlocBuilder<ListBloc, ListState>(
                             builder: (context, searchState) {
                               if (searchState is ListSearchResults) {
@@ -325,9 +355,15 @@ class _HomeScreenState extends State<HomeScreen> {
                                         title: Text(result.name),
                                         subtitle: Text('${result.name}/'),
                                         onTap: () {
-                                          context.read<ListBloc>().add(UpdateListLastUsed(result.id));
-                                          context.read<ListBloc>().add(SelectList(result.id));
-                                          context.read<TaskBloc>().add(LoadTasks(result.id));
+                                          context
+                                              .read<ListBloc>()
+                                              .add(UpdateListLastUsed(result.id));
+                                          context
+                                              .read<ListBloc>()
+                                              .add(SelectList(result.id));
+                                          context
+                                              .read<TaskBloc>()
+                                              .add(LoadTasks(result.id));
                                           setState(() {
                                             _isSearchVisible = false;
                                             _searchController.clear();
@@ -335,14 +371,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                         },
                                       );
                                     } else if (result is Task) {
-                                      final list = searchState.lists.firstWhere((l) => l.id == result.listId);
+                                      final list = searchState.lists.firstWhere(
+                                              (l) => l.id == result.listId);
                                       return ListTile(
                                         title: Text(result.title),
-                                        subtitle: Text('${list.name}/${result.title}'),
+                                        subtitle:
+                                        Text('${list.name}/${result.title}'),
                                         onTap: () {
-                                          context.read<ListBloc>().add(UpdateListLastUsed(result.listId));
-                                          context.read<ListBloc>().add(SelectList(result.listId));
-                                          context.read<TaskBloc>().add(LoadTasks(result.listId));
+                                          context
+                                              .read<ListBloc>()
+                                              .add(UpdateListLastUsed(
+                                              result.listId));
+                                          context
+                                              .read<ListBloc>()
+                                              .add(SelectList(result.listId));
+                                          context
+                                              .read<TaskBloc>()
+                                              .add(LoadTasks(result.listId));
                                           setState(() {
                                             _isSearchVisible = false;
                                             _searchController.clear();
@@ -358,26 +403,36 @@ class _HomeScreenState extends State<HomeScreen> {
                             },
                           );
                         }
-                        if (taskState is TaskLoading || listState is ListLoading) {
+                        if (taskState is TaskLoading ||
+                            listState is ListLoading) {
                           return const Center(child: CircularProgressIndicator());
                         }
-                        if (listState is ListLoaded && listState.lists.isNotEmpty) {
+                        if (listState is ListError) {
+                          return Center(
+                              child: Text('Ошибка: ${listState.message}'));
+                        }
+                        if (listState is ListLoaded &&
+                            listState.lists.isNotEmpty) {
                           if (taskState is TaskLoaded) {
                             final isMainList = listState.selectedListId != null &&
                                 listState.lists
-                                    .firstWhere((l) => l.id == listState.selectedListId!)
+                                    .firstWhere(
+                                        (l) => l.id == listState.selectedListId!)
                                     .name
                                     .toLowerCase() ==
                                     'основной';
                             final displayTasks = isMainList
                                 ? taskState.tasks
-                                .where((task) => listState.lists.any((list) => list.id == task.listId))
+                                .where((task) => listState.lists
+                                .any((list) => list.id == task.listId))
                                 .toList()
                                 : taskState.tasks;
                             return RefreshIndicator(
                               onRefresh: () async {
+                                final taskBloc = context.read<TaskBloc>();
                                 if (listState.selectedListId != null) {
-                                  context.read<TaskBloc>().add(LoadTasks(listState.selectedListId!));
+                                  taskBloc
+                                      .add(LoadTasks(listState.selectedListId!));
                                 }
                               },
                               child: displayTasks.isEmpty
@@ -387,10 +442,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                 itemBuilder: (context, index) {
                                   final task = displayTasks[index];
                                   final taskList = isMainList
-                                      ? listState.lists.firstWhere((l) => l.id == task.listId)
+                                      ? listState.lists.firstWhere(
+                                          (l) => l.id == task.listId)
                                       : null;
                                   return ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
+                                    borderRadius:
+                                    BorderRadius.circular(20),
                                     child: Slidable(
                                       key: Key(task.id),
                                       endActionPane: ActionPane(
@@ -398,8 +455,12 @@ class _HomeScreenState extends State<HomeScreen> {
                                         children: [
                                           SlidableAction(
                                             onPressed: (_) {
-                                              context.read<TaskBloc>().add(UpdateTask(
-                                                task.copyWith(isFavorite: !task.isFavorite),
+                                              context
+                                                  .read<TaskBloc>()
+                                                  .add(UpdateTask(
+                                                task.copyWith(
+                                                    isFavorite: !task
+                                                        .isFavorite),
                                               ));
                                             },
                                             backgroundColor: Colors.yellow,
@@ -409,17 +470,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ),
                                           SlidableAction(
                                             onPressed: (_) async {
-                                              final date = await showDatePicker(
+                                              final date =
+                                              await showDatePicker(
                                                 context: context,
-                                                initialDate:
-                                                task.deadline?.toDate() ?? DateTime.now(),
+                                                initialDate: task.deadline
+                                                    ?.toDate() ??
+                                                    DateTime.now(),
                                                 firstDate: DateTime.now(),
                                                 lastDate: DateTime(2030),
                                               );
                                               if (date != null) {
-                                                context.read<TaskBloc>().add(UpdateTask(
+                                                context
+                                                    .read<TaskBloc>()
+                                                    .add(UpdateTask(
                                                   task.copyWith(
-                                                      deadline: Timestamp.fromDate(date)),
+                                                      deadline: Timestamp
+                                                          .fromDate(
+                                                          date)),
                                                 ));
                                               }
                                             },
@@ -431,8 +498,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           SlidableAction(
                                             onPressed: (_) {
                                               context.read<TaskBloc>().add(
-                                                DeleteTask(task.id, task.listId),
-                                              );
+                                                  DeleteTask(
+                                                      task.id, task.listId));
                                             },
                                             backgroundColor: Colors.red,
                                             foregroundColor: Colors.white,
@@ -443,24 +510,34 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                       child: Card(
                                         elevation: 2,
-                                        color: task.isCompleted ? Colors.grey[300] : Colors.white,
+                                        color: task.isCompleted
+                                            ? Colors.grey[300]
+                                            : Colors.white,
                                         child: ListTile(
-                                          contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 16, vertical: 8),
+                                          contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 16,
+                                              vertical: 8),
                                           leading: Row(
-                                            mainAxisSize: MainAxisSize.min,
+                                            mainAxisSize:
+                                            MainAxisSize.min,
                                             children: [
                                               Checkbox(
                                                 value: task.isCompleted,
                                                 onChanged: (value) {
-                                                  context.read<TaskBloc>().add(UpdateTask(
+                                                  context
+                                                      .read<TaskBloc>()
+                                                      .add(UpdateTask(
                                                     task.copyWith(
-                                                        isCompleted: value ?? false),
+                                                        isCompleted:
+                                                        value ??
+                                                            false),
                                                   ));
                                                 },
                                               ),
                                               const CircleAvatar(
-                                                backgroundImage: AssetImage('assets/cat.png'),
+                                                backgroundImage: AssetImage(
+                                                    'assets/images/cat1.jpg'),
                                               ),
                                             ],
                                           ),
@@ -469,21 +546,28 @@ class _HomeScreenState extends State<HomeScreen> {
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: TextStyle(
-                                              decoration: task.isCompleted
-                                                  ? TextDecoration.lineThrough
+                                              decoration:
+                                              task.isCompleted
+                                                  ? TextDecoration
+                                                  .lineThrough
                                                   : null,
                                             ),
                                           ),
                                           subtitle: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            crossAxisAlignment:
+                                            CrossAxisAlignment.start,
                                             children: [
-                                              if (isMainList && taskList != null)
-                                                Text('Список: ${taskList.name}'),
-                                              Text(task.ownerId == taskState.userId
+                                              if (isMainList &&
+                                                  taskList != null)
+                                                Text(
+                                                    'Список: ${taskList.name}'),
+                                              Text(task.ownerId ==
+                                                  taskState.userId
                                                   ? 'Вы'
                                                   : 'Другой'),
                                               if (task.priority != null)
-                                                Text('Приоритет: ${task.priority}'),
+                                                Text(
+                                                    'Приоритет: ${task.priority}'),
                                               if (task.deadline != null)
                                                 Text(
                                                   'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
@@ -493,7 +577,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           trailing: Text(
                                             task.deadline != null
                                                 ? DateFormat('dd.MM')
-                                                .format(task.deadline!.toDate())
+                                                .format(task.deadline!
+                                                .toDate())
                                                 : '',
                                           ),
                                         ),
@@ -505,10 +590,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             );
                           }
                           if (taskState is TaskError) {
-                            return Center(child: Text(taskState.message));
+                            return Center(
+                                child:
+                                Text('Ошибка задач: ${taskState.message}'));
                           }
                         }
-                        return const Center(child: Text('Нет доступных списков'));
+                        return const Center(
+                            child: Text('Нет доступных списков'));
                       },
                     );
                   },
@@ -530,7 +618,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             border: OutlineInputBorder(),
                           ),
                           onChanged: (value) {
-                            context.read<ListBloc>().add(SearchListsAndTasks(value));
+                            context
+                                .read<ListBloc>()
+                                .add(SearchListsAndTasks(value));
                           },
                         ),
                       ),
@@ -571,7 +661,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     _showAddTaskBottomSheet(navContext, listId);
                   } else {
                     ScaffoldMessenger.of(navContext).showSnackBar(
-                      const SnackBar(content: Text('Сначала создайте или выберите список')),
+                      const SnackBar(
+                          content:
+                          Text('Сначала создайте или выберите список')),
                     );
                   }
                 }

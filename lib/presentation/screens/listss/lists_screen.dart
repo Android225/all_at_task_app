@@ -20,8 +20,9 @@ class _ListsScreenState extends State<ListsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final userId = _auth.currentUser?.uid ?? '';
     return BlocProvider(
-      create: (_) => getIt<ListBloc>()..add(LoadLists()),
+      create: (_) => getIt<ListBloc>()..add(LoadLists(userId: userId)),
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: AppTheme.primaryColor,
@@ -52,11 +53,12 @@ class _ListsScreenState extends State<ListsScreen> {
                       onTap: () {
                         context.read<ListBloc>().add(UpdateListLastUsed(list.id));
                         context.read<ListBloc>().add(SelectList(list.id));
-                        Navigator.pushNamed(context, '/home', arguments: list.id);
+                        Navigator.pushNamed(context, '/home',
+                            arguments: list.id);
                       },
                       child: Card(
                         elevation: 2,
-                        color: Color(list.color),
+                        color: Color(list.color ?? 0xFF2196F3),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -65,7 +67,8 @@ class _ListsScreenState extends State<ListsScreen> {
                             Center(
                               child: Text(
                                 list.name,
-                                style: const TextStyle(fontSize: 16, color: Colors.white),
+                                style: const TextStyle(
+                                    fontSize: 16, color: Colors.white),
                                 textAlign: TextAlign.center,
                               ),
                             ),
@@ -73,7 +76,8 @@ class _ListsScreenState extends State<ListsScreen> {
                               right: 8,
                               top: 8,
                               child: IconButton(
-                                icon: const Icon(Icons.people, color: Colors.white),
+                                icon: const Icon(Icons.people,
+                                    color: Colors.white),
                                 onPressed: () {
                                   _showMembersDialog(context, list);
                                 },
@@ -112,7 +116,8 @@ class _ListsScreenState extends State<ListsScreen> {
             child: BlocBuilder<ListBloc, ListState>(
               builder: (context, state) {
                 if (state is ListLoaded) {
-                  final isAdmin = list.members[_auth.currentUser!.uid] == 'admin';
+                  final isAdmin =
+                      list.members[_auth.currentUser!.uid] == 'admin';
                   return ListView.builder(
                     shrinkWrap: true,
                     itemCount: list.members.length,
@@ -120,10 +125,12 @@ class _ListsScreenState extends State<ListsScreen> {
                       final userId = list.members.keys.elementAt(index);
                       final role = list.members[userId]!;
                       return FutureBuilder<DocumentSnapshot>(
-                        future: _firestore.collection('users').doc(userId).get(),
+                        future:
+                        _firestore.collection('users').doc(userId).get(),
                         builder: (context, snapshot) {
                           if (!snapshot.hasData) return const SizedBox();
-                          final userData = snapshot.data!.data() as Map<String, dynamic>;
+                          final userData =
+                          snapshot.data!.data() as Map<String, dynamic>;
                           return ListTile(
                             title: Text(userData['name'] ?? 'Unknown'),
                             subtitle: Text('Роль: $role'),
@@ -131,18 +138,23 @@ class _ListsScreenState extends State<ListsScreen> {
                                 ? DropdownButton<String>(
                               value: role,
                               items: const [
-                                DropdownMenuItem(value: 'viewer', child: Text('Просмотр')),
-                                DropdownMenuItem(value: 'editor', child: Text('Редактор')),
-                                DropdownMenuItem(value: 'manager', child: Text('Менеджер')),
-                                DropdownMenuItem(value: 'admin', child: Text('Админ')),
+                                DropdownMenuItem(
+                                    value: 'viewer',
+                                    child: Text('Просмотр')),
+                                DropdownMenuItem(
+                                    value: 'editor',
+                                    child: Text('Редактор')),
+                                DropdownMenuItem(
+                                    value: 'manager',
+                                    child: Text('Менеджер')),
+                                DropdownMenuItem(
+                                    value: 'admin', child: Text('Админ')),
                               ],
                               onChanged: (value) {
                                 if (value != null) {
-                                  context.read<ListBloc>().add(UpdateMemberRole(
-                                    list.id,
-                                    userId,
-                                    value,
-                                  ));
+                                  context.read<ListBloc>().add(
+                                      UpdateMemberRole(
+                                          list.id, userId, value));
                                   Navigator.pop(dialogContext);
                                 }
                               },

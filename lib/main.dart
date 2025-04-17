@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
@@ -13,7 +14,10 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  // Очищаем сессию, чтобы всегда начинать с LoginScreen
+  await FirebaseAppCheck.instance.activate(
+    androidProvider: AndroidProvider.debug, // Используйте playIntegrity в продакшене
+  );
+  // Очищаем сессию для отладки (удалите в продакшене)
   await FirebaseAuth.instance.signOut();
   setupServiceLocator();
   runApp(const MyApp());

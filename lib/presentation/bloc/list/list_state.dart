@@ -1,28 +1,58 @@
 part of 'list_bloc.dart';
 
-@immutable
-sealed class ListState {}
+abstract class ListState extends Equatable {
+  final String userId;
 
-final class ListInitial extends ListState {}
+  const ListState(this.userId);
 
-final class ListLoading extends ListState {}
+  @override
+  List<Object> get props => [userId];
+}
 
-final class ListLoaded extends ListState {
+class ListInitial extends ListState {
+  const ListInitial({required String userId}) : super(userId);
+
+  @override
+  List<Object> get props => [userId];
+}
+
+class ListLoading extends ListState {
+  const ListLoading() : super('');
+}
+
+class ListLoaded extends ListState {
   final List<TaskList> lists;
   final String? selectedListId;
 
-  ListLoaded(this.lists, this.selectedListId);
+  const ListLoaded({
+    required this.lists,
+    required String userId,
+    this.selectedListId,
+  }) : super(userId);
+
+  @override
+  List<Object> get props => [lists, userId, selectedListId ?? ''];
 }
 
-final class ListSearchResults extends ListState {
-  final List<TaskList> lists;
+class ListSearchResults extends ListState {
   final List<dynamic> results;
+  final List<TaskList> lists;
 
-  ListSearchResults(this.lists, this.results);
+  const ListSearchResults({
+    required this.results,
+    required this.lists,
+    required String userId,
+  }) : super(userId);
+
+  @override
+  List<Object> get props => [results, lists, userId];
 }
 
-final class ListError extends ListState {
+class ListError extends ListState {
   final String message;
 
-  ListError(this.message);
+  ListError(this.message) : super('');
+
+  @override
+  List<Object> get props => [message];
 }

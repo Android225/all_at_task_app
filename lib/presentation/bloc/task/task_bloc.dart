@@ -22,7 +22,11 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onLoadTasks(LoadTasks event, Emitter<TaskState> emit) async {
     emit(TaskLoading());
     try {
-      final userId = _auth.currentUser!.uid;
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) {
+        emit(TaskError('Пользователь не авторизован'));
+        return;
+      }
       QuerySnapshot snapshot;
       if (event.listId == 'main') {
         final listsSnapshot = await _firestore
@@ -42,50 +46,67 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
             .orderBy('createdAt', descending: true)
             .get();
       }
-      final tasks = snapshot.docs.map((doc) => Task.fromMap(doc.data() as Map<String, dynamic>)).toList();
+      final tasks = snapshot.docs
+          .map((doc) => Task.fromMap(doc.data() as Map<String, dynamic>))
+          .toList();
       emit(TaskLoaded(tasks, userId));
     } catch (e) {
-      emit(TaskError('Не удалось загрузить задачи: попробуйте позже'));
+      emit(TaskError('Не удалось загрузить задачи: $e'));
     }
   }
 
   Future<void> _onAddTask(AddTask event, Emitter<TaskState> emit) async {
     try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) {
+        emit(TaskError('Пользователь не авторизован'));
+        return;
+      }
       final task = Task(
         id: const Uuid().v4(),
         title: event.title,
         description: event.description,
         listId: event.listId,
-        ownerId: _auth.currentUser!.uid,
+        ownerId: event.ownerId,
         createdAt: Timestamp.now(),
-        deadline: event.deadline != null ? Timestamp.fromDate(event.deadline!) : null,
+        deadline: event.deadline,
         priority: event.priority,
-        assignedTo: _auth.currentUser!.uid,
-        isCompleted: false,
-        isFavorite: false,
+        assignedTo: event.assignedTo,
+        isCompleted: event.isCompleted,
+        isFavorite: event.isFavorite,
       );
       await _firestore.collection('tasks').doc(task.id).set(task.toMap());
       add(LoadTasks(event.listId));
     } catch (e) {
-      emit(TaskError('Не удалось добавить задачу: попробуйте позже'));
+      emit(TaskError('Не удалось добавить задачу: $e'));
     }
   }
 
   Future<void> _onUpdateTask(UpdateTask event, Emitter<TaskState> emit) async {
     try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) {
+        emit( TaskError('Пользователь не авторизован'));
+        return;
+      }
       await _firestore.collection('tasks').doc(event.task.id).update(event.task.toMap());
       add(LoadTasks(event.task.listId));
     } catch (e) {
-      emit(TaskError('Не удалось обновить задачу: попробуйте позже'));
+      emit(TaskError('Не удалось обновить задачу: $e'));
     }
   }
 
   Future<void> _onDeleteTask(DeleteTask event, Emitter<TaskState> emit) async {
     try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) {
+        emit(TaskError('Пользователь не авторизован'));
+        return;
+      }
       await _firestore.collection('tasks').doc(event.taskId).delete();
       add(LoadTasks(event.listId));
     } catch (e) {
-      emit(TaskError('Не удалось удалить задачу: попробуйте позже'));
+      emit(TaskError('Не удалось удалить задачу: $e'));
     }
   }
 }

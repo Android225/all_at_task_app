@@ -1,42 +1,40 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
-import 'package:uuid/uuid.dart';
 
 class TaskList extends Equatable {
   final String id;
   final String name;
   final String ownerId;
-  final Timestamp createdAt;
-  final Timestamp? lastUsed;
   final String? description;
-  final int color;
-  final List<String> sharedLists;
+  final int? color;
+  final DateTime createdAt;
+  final DateTime? lastUsed;
   final Map<String, String> members;
+  final List<String> sharedLists;
 
-  TaskList({
-    String? id,
+  const TaskList({
+    required this.id,
     required this.name,
     required this.ownerId,
-    Timestamp? createdAt,
-    this.lastUsed,
     this.description,
-    this.color = 0xFF2196F3,
-    this.sharedLists = const [],
-    this.members = const {},
-  })  : id = id ?? const Uuid().v4(),
-        createdAt = createdAt ?? Timestamp.now();
+    this.color,
+    required this.createdAt,
+    this.lastUsed,
+    required this.members,
+    required this.sharedLists,
+  });
 
   factory TaskList.fromMap(Map<String, dynamic> map) {
     return TaskList(
-      id: map['id'],
-      name: map['name'],
-      ownerId: map['ownerId'],
-      createdAt: map['createdAt'],
-      lastUsed: map['lastUsed'],
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
+      ownerId: map['ownerId'] ?? '',
       description: map['description'],
-      color: map['color'] ?? 0xFF2196F3,
-      sharedLists: List<String>.from(map['sharedLists'] ?? []),
+      color: map['color'],
+      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastUsed: (map['lastUsed'] as Timestamp?)?.toDate(),
       members: Map<String, String>.from(map['members'] ?? {}),
+      sharedLists: List<String>.from(map['sharedLists'] ?? []),
     );
   }
 
@@ -45,15 +43,49 @@ class TaskList extends Equatable {
       'id': id,
       'name': name,
       'ownerId': ownerId,
-      'createdAt': createdAt,
-      'lastUsed': lastUsed,
       'description': description,
       'color': color,
-      'sharedLists': sharedLists,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'lastUsed': lastUsed != null ? Timestamp.fromDate(lastUsed!) : null,
       'members': members,
+      'sharedLists': sharedLists,
     };
   }
 
+  TaskList copyWith({
+    String? id,
+    String? name,
+    String? ownerId,
+    String? description,
+    int? color,
+    DateTime? createdAt,
+    DateTime? lastUsed,
+    Map<String, String>? members,
+    List<String>? sharedLists,
+  }) {
+    return TaskList(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      ownerId: ownerId ?? this.ownerId,
+      description: description ?? this.description,
+      color: color ?? this.color,
+      createdAt: createdAt ?? this.createdAt,
+      lastUsed: lastUsed ?? this.lastUsed,
+      members: members ?? this.members,
+      sharedLists: sharedLists ?? this.sharedLists,
+    );
+  }
+
   @override
-  List<Object?> get props => [id, name, ownerId, createdAt, lastUsed, description, color, sharedLists, members];
+  List<Object?> get props => [
+    id,
+    name,
+    ownerId,
+    description,
+    color,
+    createdAt,
+    lastUsed,
+    members,
+    sharedLists,
+  ];
 }
