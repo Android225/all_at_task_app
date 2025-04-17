@@ -11,6 +11,7 @@ class TaskList extends Equatable {
   final String? description;
   final int color;
   final List<String> sharedLists;
+  final List<String> linkedLists; // Новое поле для связанных списков
   final Map<String, String> members;
 
   TaskList({
@@ -22,6 +23,7 @@ class TaskList extends Equatable {
     this.description,
     this.color = 0xFF2196F3,
     this.sharedLists = const [],
+    this.linkedLists = const [], // Инициализируем пустым списком
     this.members = const {},
   })  : id = id ?? const Uuid().v4(),
         createdAt = createdAt ?? Timestamp.now();
@@ -36,6 +38,7 @@ class TaskList extends Equatable {
       description: map['description'],
       color: map['color'] ?? 0xFF2196F3,
       sharedLists: List<String>.from(map['sharedLists'] ?? []),
+      linkedLists: List<String>.from(map['linkedLists'] ?? []), // Добавляем linkedLists
       members: Map<String, String>.from(map['members'] ?? {}),
     );
   }
@@ -50,10 +53,11 @@ class TaskList extends Equatable {
       'description': description,
       'color': color,
       'sharedLists': sharedLists,
+      'linkedLists': linkedLists, // Добавляем linkedLists
       'members': members,
     };
   }
 
   @override
-  List<Object?> get props => [id, name, ownerId, createdAt, lastUsed, description, color, sharedLists, members];
+  List<Object?> get props => [id, name, ownerId, createdAt, lastUsed, description, color, sharedLists, linkedLists, members];
 }

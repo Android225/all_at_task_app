@@ -23,28 +23,20 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     on<UpdateList>(_onUpdateList);
     on<InviteToList>(_onInviteToList);
     on<UpdateMemberRole>(_onUpdateMemberRole);
+    on<LinkList>(_onLinkList); // Новое событие для связывания списков
   }
 
   Future<void> _onLoadLists(LoadLists event, Emitter<ListState> emit) async {
     emit(ListLoading());
     try {
       final userId = _auth.currentUser!.uid;
-      // Ищем списки, где пользователь есть в подколлекции members
-      final membersSnapshot = await _firestore
-          .collectionGroup('members')
-          .where('role', isNotEqualTo: null)
+      final listsSnapshot = await _firestore
+          .collection('lists')
+          .where('members.$userId', isNotEqualTo: null)
           .get();
-      final listIds = membersSnapshot.docs
-          .where((doc) => doc.reference.parent.parent!.id != null)
-          .map((doc) => doc.reference.parent.parent!.id)
+      final lists = listsSnapshot.docs
+          .map((doc) => TaskList.fromMap(doc.data()))
           .toList();
-      final lists = <TaskList>[];
-      for (final listId in listIds) {
-        final listDoc = await _firestore.collection('lists').doc(listId).get();
-        if (listDoc.exists) {
-          lists.add(TaskList.fromMap(listDoc.data()!));
-        }
-      }
       emit(ListLoaded(lists, lists.isNotEmpty ? lists.first.id : null));
     } catch (e) {
       emit(ListError('Не удалось загрузить списки: попробуйте позже'));
@@ -62,16 +54,13 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         description: event.description,
         color: event.color,
         sharedLists: event.sharedLists,
+        linkedLists: [], // Инициализируем пустой linkedLists
       );
       await _firestore.collection('lists').doc(listId).set(list.toMap());
       await _firestore
           .collection('lists')
           .doc(listId)
-          .collection('members')
-          .doc(userId)
-          .set({
-        'role': 'admin',
-      });
+          .update({'members.$userId': 'admin'});
       add(LoadLists());
     } catch (e) {
       emit(ListError('Не удалось добавить список: попробуйте позже'));
@@ -101,20 +90,13 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     }
     try {
       final userId = _auth.currentUser!.uid;
-      final membersSnapshot = await _firestore
-          .collectionGroup('members')
-          .where('role', isNotEqualTo: null)
+      final listsSnapshot = await _firestore
+          .collection('lists')
+          .where('members.$userId', isNotEqualTo: null)
           .get();
-      final listIds = membersSnapshot.docs
-          .map((doc) => doc.reference.parent.parent!.id)
+      final lists = listsSnapshot.docs
+          .map((doc) => TaskList.fromMap(doc.data()))
           .toList();
-      final lists = <TaskList>[];
-      for (final listId in listIds) {
-        final listDoc = await _firestore.collection('lists').doc(listId).get();
-        if (listDoc.exists) {
-          lists.add(TaskList.fromMap(listDoc.data()!));
-        }
-      }
       final tasksQuery = await _firestore
           .collection('tasks')
           .where('ownerId', isEqualTo: userId)
@@ -161,6 +143,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         'status': 'pending',
         'createdAt': FieldValue.serverTimestamp(),
       });
+      print('Приглашение отправлено: $invitationId');
     } catch (e) {
       emit(ListError('Не удалось отправить приглашение: попробуйте позже'));
     }
@@ -171,14 +154,27 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       await _firestore
           .collection('lists')
           .doc(event.listId)
-          .collection('members')
-          .doc(event.userId)
-          .update({
-        'role': event.role,
-      });
+          .update({'members.${event.userId}': event.role});
       add(LoadLists());
     } catch (e) {
       emit(ListError('Не удалось обновить роль: попробуйте позже'));
+    }
+  }
+
+  Future<void> _onLinkList(LinkList event, Emitter<ListState> emit) async {
+    try {
+      final listDoc = await _firestore.collection('lists').doc(event.listId).get();
+      final currentLinkedLists = List<String>.from(listDoc.data()?['linkedLists'] ?? []);
+      if (!currentLinkedLists.contains(event.linkedListId)) {
+        currentLinkedLists.add(event.linkedListId);
+        await _firestore.collection('lists').doc(event.listId).update({
+          'linkedLists': currentLinkedLists,
+        });
+        print('Список ${event.linkedListId} привязан к ${event.listId}');
+      }
+      add(LoadLists());
+    } catch (e) {
+      emit(ListError('Не удалось привязать список: попробуйте позже'));
     }
   }
 }

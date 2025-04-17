@@ -56,25 +56,37 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       final user = userCredential.user;
       if (user != null) {
+// Сохраняем все поля пользователя
+        await user.updateDisplayName(event.name);
         await _firestore.collection('users').doc(user.uid).set({
+          'name': event.name,
+          'username': event.username,
           'email': event.email,
           'createdAt': FieldValue.serverTimestamp(),
         });
-        // Создаём список "Основной" для нового пользователя
+// Создаём список "Основной"
         final listId = const Uuid().v4();
-        await _firestore.collection('lists').doc(listId).set({
-          'id': listId,
-          'name': 'Основной',
-          'ownerId': user.uid,
-          'members': {user.uid: 'admin'},
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-        // После регистрации эмитим AuthSignUpSuccess вместо AuthSuccess
+        try {
+          await _firestore.collection('lists').doc(listId).set({
+            'id': listId,
+            'name': 'Основной',
+            'ownerId': user.uid,
+            'members': {user.uid: 'admin'},
+            'createdAt': FieldValue.serverTimestamp(),
+            'linkedLists': [], // Инициализируем пустой список связанных списков
+          });
+          print('Основной список создан с ID: $listId');
+        } catch (e) {
+          print('Ошибка создания основного списка: $e');
+          emit(AuthError('Ошибка создания основного списка: $e'));
+          return;
+        }
         emit(AuthSignUpSuccess());
       } else {
         emit(const AuthError('Ошибка регистрации: пользователь не создан'));
       }
     } catch (e) {
+      print('Ошибка регистрации: $e');
       emit(AuthError('Ошибка регистрации: $e'));
     }
   }
