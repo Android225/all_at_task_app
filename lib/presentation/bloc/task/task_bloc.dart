@@ -30,7 +30,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
             .where('members.$userId', isNotEqualTo: null)
             .get();
         final listIds = listsSnapshot.docs.map((doc) => doc.id).toList();
-// Добавляем задачи из связанных списков
         final mainList = listsSnapshot.docs.firstWhere(
               (doc) => doc['name'].toString().toLowerCase() == 'основной',
           orElse: () => listsSnapshot.docs.first,
@@ -67,13 +66,14 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         listId: event.listId,
         ownerId: _auth.currentUser!.uid,
         createdAt: Timestamp.now(),
-        deadline: event.deadline != null ? Timestamp.fromDate(event.deadline!) : null,
+        deadline: event.deadline,
         priority: event.priority,
         assignedTo: _auth.currentUser!.uid,
         isCompleted: false,
         isFavorite: false,
       );
       await _firestore.collection('tasks').doc(task.id).set(task.toMap());
+      print('Добавлена задача: ${task.title}, deadline: ${task.deadline}');
       add(LoadTasks(event.listId));
     } catch (e) {
       print('Ошибка добавления задачи: $e');
@@ -84,6 +84,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onUpdateTask(UpdateTask event, Emitter<TaskState> emit) async {
     try {
       await _firestore.collection('tasks').doc(event.task.id).update(event.task.toMap());
+      print('Обновлена задача: ${event.task.title}, deadline: ${event.task.deadline}');
       add(LoadTasks(event.task.listId));
     } catch (e) {
       print('Ошибка обновления задачи: $e');
@@ -94,6 +95,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onDeleteTask(DeleteTask event, Emitter<TaskState> emit) async {
     try {
       await _firestore.collection('tasks').doc(event.taskId).delete();
+      print('Удалена задача: taskId=${event.taskId}');
       add(LoadTasks(event.listId));
     } catch (e) {
       print('Ошибка удаления задачи: $e');

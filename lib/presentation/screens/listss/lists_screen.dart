@@ -2,6 +2,7 @@ import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/models/task_list.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
+import 'package:all_at_task/presentation/bloc/list/list_state.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -35,6 +36,7 @@ class _ListsScreenState extends State<ListsScreen> {
           padding: const EdgeInsets.all(AppTheme.defaultPadding),
           child: BlocBuilder<ListBloc, ListState>(
             builder: (context, state) {
+              print('ListsScreen ListBloc state: $state');
               if (state is ListLoading) {
                 return const Center(child: CircularProgressIndicator());
               } else if (state is ListLoaded) {
@@ -56,7 +58,9 @@ class _ListsScreenState extends State<ListsScreen> {
                       },
                       child: Card(
                         elevation: 2,
-                        color: Color(list.color),
+                        color: list.color != null
+                            ? Color(int.parse(list.color!, radix: 16))
+                            : Colors.grey,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -111,6 +115,7 @@ class _ListsScreenState extends State<ListsScreen> {
             width: double.maxFinite,
             child: BlocBuilder<ListBloc, ListState>(
               builder: (context, state) {
+                print('ListsScreen MembersDialog ListBloc state: $state');
                 if (state is ListLoaded) {
                   final isAdmin = list.members[_auth.currentUser!.uid] == 'admin';
                   return ListView.builder(

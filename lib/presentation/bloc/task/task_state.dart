@@ -1,7 +1,10 @@
 part of 'task_bloc.dart';
 
+
 @immutable
-sealed class TaskState {}
+abstract class TaskState {
+  const TaskState();
+}
 
 final class TaskInitial extends TaskState {}
 

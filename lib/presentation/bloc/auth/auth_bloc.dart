@@ -43,6 +43,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         emit(const AuthError('Ошибка входа: пользователь не найден'));
       }
     } catch (e) {
+      print('Ошибка входа: $e');
       emit(AuthError('Ошибка входа: $e'));
     }
   }
@@ -56,7 +57,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       );
       final user = userCredential.user;
       if (user != null) {
-// Сохраняем все поля пользователя
         await user.updateDisplayName(event.name);
         await _firestore.collection('users').doc(user.uid).set({
           'name': event.name,
@@ -64,22 +64,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'email': event.email,
           'createdAt': FieldValue.serverTimestamp(),
         });
-// Создаём список "Основной"
-        final listId = const Uuid().v4();
-        try {
-          await _firestore.collection('lists').doc(listId).set({
-            'id': listId,
-            'name': 'Основной',
-            'ownerId': user.uid,
-            'members': {user.uid: 'admin'},
-            'createdAt': FieldValue.serverTimestamp(),
-            'linkedLists': [], // Инициализируем пустой список связанных списков
-          });
-          print('Основной список создан с ID: $listId');
-        } catch (e) {
-          print('Ошибка создания основного списка: $e');
-          emit(AuthError('Ошибка создания основного списка: $e'));
-          return;
+        final lists = [
+          {'name': 'Основной', 'id': const Uuid().v4()},
+          {'name': 'Работа', 'id': const Uuid().v4()},
+          {'name': 'Личное', 'id': const Uuid().v4()},
+          {'name': 'Покупки', 'id': const Uuid().v4()},
+        ];
+        for (var list in lists) {
+          try {
+            await _firestore.collection('lists').doc(list['id']).set({
+              'id': list['id'],
+              'name': list['name'],
+              'ownerId': user.uid,
+              'members': {user.uid: 'admin'},
+              'createdAt': FieldValue.serverTimestamp(),
+              'linkedLists': [],
+              'sharedLists': [],
+              'color': '0xFF2196F3',
+            });
+            print('Список создан: ${list['name']} с ID: ${list['id']}');
+          } catch (e) {
+            print('Ошибка создания списка ${list['name']}: $e');
+            emit(AuthError('Ошибка создания списка: $e'));
+            return;
+          }
         }
         emit(AuthSignUpSuccess());
       } else {
@@ -101,6 +109,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       await _auth.sendPasswordResetEmail(email: event.email);
       emit(const AuthMessage('Письмо для сброса пароля отправлено'));
     } catch (e) {
+      print('Ошибка сброса пароля: $e');
       emit(AuthError('Ошибка сброса пароля: $e'));
     }
   }

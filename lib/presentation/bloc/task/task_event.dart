@@ -11,15 +11,16 @@ final class LoadTasks extends TaskEvent {
 final class AddTask extends TaskEvent {
   final String title;
   final String? description;
-  final DateTime? deadline;
+  final Timestamp? deadline;
   final String listId;
-  final String priority;
+  final String? priority;
+
   AddTask({
     required this.title,
     this.description,
     this.deadline,
     required this.listId,
-    required this.priority,
+    this.priority,
   });
 }
 

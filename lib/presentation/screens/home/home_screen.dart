@@ -2,9 +2,10 @@ import 'package:all_at_task/config/theme/app_theme.dart';
 import 'package:all_at_task/data/models/task.dart';
 import 'package:all_at_task/data/models/task_list.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
+import 'package:all_at_task/presentation/bloc/auth/auth_bloc.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
+import 'package:all_at_task/presentation/bloc/list/list_state.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
-import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -47,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
       builder: (bottomSheetContext) {
         return StatefulBuilder(
           builder: (BuildContext context, StateSetter bottomSheetSetState) {
-            return Container(
+            return Padding(
               padding: EdgeInsets.only(
                 bottom: MediaQuery.of(bottomSheetContext).viewInsets.bottom,
                 left: AppTheme.defaultPadding * 1.5,
@@ -77,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         filled: true,
                         fillColor: Colors.grey[100],
                       ),
-                      onChanged: (_) => bottomSheetSetState(() {}),
+                      onChanged: (value) => bottomSheetSetState(() {}),
                     ),
                     const SizedBox(height: 16),
                     TextField(
@@ -91,7 +92,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         fillColor: Colors.grey[100],
                       ),
                       maxLines: 3,
-                      onChanged: (_) => bottomSheetSetState(() {}),
+                      onChanged: (value) => bottomSheetSetState(() {}),
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
@@ -104,9 +105,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         filled: true,
                         fillColor: Colors.grey[100],
                       ),
-                      items: ['low', 'medium', 'high']
-                          .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                          .toList(),
+                      items: const [
+                        DropdownMenuItem(value: 'low', child: Text('low')),
+                        DropdownMenuItem(value: 'medium', child: Text('medium')),
+                        DropdownMenuItem(value: 'high', child: Text('high')),
+                      ],
                       onChanged: (value) {
                         bottomSheetSetState(() {
                           _selectedPriority = value ?? 'medium';
@@ -151,12 +154,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       onPressed: _titleController.text.isEmpty
                           ? null
                           : () {
+                        print('Adding task: title=${_titleController.text}, listId=$listId, deadline=$_selectedDate');
                         scaffoldContext.read<TaskBloc>().add(AddTask(
                           title: _titleController.text,
                           description: _descriptionController.text.isEmpty
                               ? null
                               : _descriptionController.text,
-                          deadline: _selectedDate,
+                          deadline: _selectedDate != null
+                              ? Timestamp.fromDate(_selectedDate!)
+                              : null,
                           listId: listId,
                           priority: _selectedPriority,
                         ));
@@ -183,11 +189,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final String? selectedListId = ModalRoute.of(context)?.settings.arguments as String?;
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => getIt<TaskBloc>()),
-        BlocProvider(create: (_) => getIt<ListBloc>()..add(LoadLists())),
+        BlocProvider(create: (context) => getIt<TaskBloc>()),
+        BlocProvider(create: (context) => getIt<ListBloc>()..add(LoadLists())),
       ],
-      child: WillPopScope(
-        onWillPop: () async => false,
+      child: PopScope(
+        canPop: false,
         child: Scaffold(
           appBar: AppBar(
             backgroundColor: AppTheme.primaryColor,
@@ -199,7 +205,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             title: BlocBuilder<ListBloc, ListState>(
               builder: (context, state) {
+                print('HomeScreen AppBar ListBloc state: $state');
                 if (state is ListLoaded) {
+                  print('HomeScreen AppBar lists: ${state.lists.map((l) => l.name).toList()}');
                   return SizedBox(
                     height: 40,
                     child: ListView.builder(
@@ -279,8 +287,17 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               MultiBlocListener(
                 listeners: [
+                  BlocListener<AuthBloc, AuthState>(
+                    listener: (context, state) {
+                      print('HomeScreen AuthBloc state: $state');
+                      if (state is AuthSuccess && !_isInitialSelectionDone) {
+                        context.read<ListBloc>().add(LoadLists());
+                      }
+                    },
+                  ),
                   BlocListener<ListBloc, ListState>(
                     listener: (context, state) {
+                      print('HomeScreen ListBloc listener state: $state');
                       if (state is ListLoaded && state.lists.isNotEmpty && !_isInitialSelectionDone) {
                         final mainList = state.lists.firstWhere(
                               (list) => list.name.toLowerCase().trim() == 'основной',
@@ -289,9 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         if (selectedListId == null) {
                           context.read<ListBloc>().add(SelectList(mainList.id));
                           context.read<TaskBloc>().add(LoadTasks(mainList.id));
-                        } else {
-                          context.read<ListBloc>().add(SelectList(selectedListId));
-                          context.read<TaskBloc>().add(LoadTasks(selectedListId));
+                          print('HomeScreen: Автоматический выбор основного списка: ${mainList.id}');
                         }
                         _isInitialSelectionDone = true;
                       }
@@ -299,27 +314,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   BlocListener<TaskBloc, TaskState>(
                     listener: (context, state) {
+                      print('HomeScreen TaskBloc state: $state');
                       if (state is TaskLoaded) {
-                        print('Tasks loaded: ${state.tasks.map((t) => t.title).toList()}');
+                        print('HomeScreen: Tasks loaded: ${state.tasks.map((t) => t.title).toList()}');
                       } else if (state is TaskError) {
-                        print('Task error: ${state.message}');
+                        print('HomeScreen: Task error: ${state.message}');
                       }
                     },
                   ),
                 ],
                 child: BlocBuilder<ListBloc, ListState>(
                   builder: (context, listState) {
+                    print('HomeScreen ListBloc builder state: $listState');
                     return BlocBuilder<TaskBloc, TaskState>(
                       builder: (context, taskState) {
+                        print('HomeScreen TaskBloc builder state: $taskState');
                         if (_isSearchVisible && _searchController.text.isNotEmpty) {
                           context.read<ListBloc>().add(SearchListsAndTasks(_searchController.text));
                           return BlocBuilder<ListBloc, ListState>(
                             builder: (context, searchState) {
+                              print('HomeScreen Search ListBloc state: $searchState');
                               if (searchState is ListSearchResults) {
+                                final results = [...searchState.listResults, ...searchState.taskResults];
                                 return ListView.builder(
-                                  itemCount: searchState.results.length,
+                                  itemCount: results.length,
                                   itemBuilder: (context, index) {
-                                    final result = searchState.results[index];
+                                    final result = results[index];
                                     if (result is TaskList) {
                                       return ListTile(
                                         title: Text(result.name),
@@ -335,7 +355,18 @@ class _HomeScreenState extends State<HomeScreen> {
                                         },
                                       );
                                     } else if (result is Task) {
-                                      final list = searchState.lists.firstWhere((l) => l.id == result.listId);
+                                      final list = searchState.allLists.firstWhere(
+                                            (l) => l.id == result.listId,
+                                        orElse: () => TaskList(
+                                          id: '',
+                                          name: 'Неизвестный список',
+                                          ownerId: '',
+                                          members: {},
+                                          sharedLists: [],
+                                          linkedLists: [],
+                                          createdAt: null,
+                                        ),
+                                      );
                                       return ListTile(
                                         title: Text(result.title),
                                         subtitle: Text('${list.name}/${result.title}'),
@@ -389,113 +420,112 @@ class _HomeScreenState extends State<HomeScreen> {
                                   final taskList = isMainList
                                       ? listState.lists.firstWhere((l) => l.id == task.listId)
                                       : null;
-                                  return ClipRRect(
-                                    borderRadius: BorderRadius.circular(20),
-                                    child: Slidable(
-                                      key: Key(task.id),
-                                      endActionPane: ActionPane(
-                                        motion: const ScrollMotion(),
-                                        children: [
-                                          SlidableAction(
-                                            onPressed: (_) {
-                                              context.read<TaskBloc>().add(UpdateTask(
-                                                task.copyWith(isFavorite: !task.isFavorite),
+                                  return Slidable(
+                                    key: ValueKey(task.id),
+                                    endActionPane: ActionPane(
+                                      motion: const ScrollMotion(),
+                                      children: [
+                                        CustomSlidableAction(
+                                          onPressed: (context) {
+                                            context.read<TaskBloc>().add(UpdateTask(
+                                              task.copyWith(isFavorite: !task.isFavorite),
+                                            ));
+                                          },
+                                          backgroundColor: Colors.yellow,
+                                          child: const Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.star, color: Colors.white),
+                                              Text('Избранное', style: TextStyle(color: Colors.white)),
+                                            ],
+                                          ),
+                                        ),
+                                        CustomSlidableAction(
+                                          onPressed: (slidableContext) async {
+                                            final date = await showDatePicker(
+                                              context: slidableContext,
+                                              initialDate: task.deadline?.toDate() ?? DateTime.now(),
+                                              firstDate: DateTime.now(),
+                                              lastDate: DateTime(2030),
+                                            );
+                                            if (date != null) {
+                                              slidableContext.read<TaskBloc>().add(UpdateTask(
+                                                task.copyWith(deadline: Timestamp.fromDate(date)),
                                               ));
-                                            },
-                                            backgroundColor: Colors.yellow,
-                                            foregroundColor: Colors.white,
-                                            icon: Icons.star,
-                                            label: 'Избранное',
+                                            }
+                                          },
+                                          backgroundColor: Colors.blue,
+                                          child: const Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.calendar_today, color: Colors.white),
+                                              Text('Дедлайн', style: TextStyle(color: Colors.white)),
+                                            ],
                                           ),
-                                          SlidableAction(
-                                            onPressed: (_) async {
-                                              final date = await showDatePicker(
-                                                context: context,
-                                                initialDate:
-                                                task.deadline?.toDate() ?? DateTime.now(),
-                                                firstDate: DateTime.now(),
-                                                lastDate: DateTime(2030),
-                                              );
-                                              if (date != null) {
+                                        ),
+                                        CustomSlidableAction(
+                                          onPressed: (context) {
+                                            context.read<TaskBloc>().add(
+                                              DeleteTask(task.id, task.listId),
+                                            );
+                                          },
+                                          backgroundColor: Colors.red,
+                                          child: const Column(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Icon(Icons.delete, color: Colors.white),
+                                              Text('Удалить', style: TextStyle(color: Colors.white)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Card(
+                                      elevation: 2,
+                                      color: task.isCompleted ? Colors.grey[300] : Colors.white,
+                                      child: ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                        leading: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Checkbox(
+                                              value: task.isCompleted,
+                                              onChanged: (value) {
                                                 context.read<TaskBloc>().add(UpdateTask(
-                                                  task.copyWith(
-                                                      deadline: Timestamp.fromDate(date)),
+                                                  task.copyWith(isCompleted: value ?? false),
                                                 ));
-                                              }
-                                            },
-                                            backgroundColor: Colors.blue,
-                                            foregroundColor: Colors.white,
-                                            icon: Icons.calendar_today,
-                                            label: 'Дедлайн',
-                                          ),
-                                          SlidableAction(
-                                            onPressed: (_) {
-                                              context.read<TaskBloc>().add(
-                                                DeleteTask(task.id, task.listId),
-                                              );
-                                            },
-                                            backgroundColor: Colors.red,
-                                            foregroundColor: Colors.white,
-                                            icon: Icons.delete,
-                                            label: 'Удалить',
-                                          ),
-                                        ],
-                                      ),
-                                      child: Card(
-                                        elevation: 2,
-                                        color: task.isCompleted ? Colors.grey[300] : Colors.white,
-                                        child: ListTile(
-                                          contentPadding: const EdgeInsets.symmetric(
-                                              horizontal: 16, vertical: 8),
-                                          leading: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Checkbox(
-                                                value: task.isCompleted,
-                                                onChanged: (value) {
-                                                  context.read<TaskBloc>().add(UpdateTask(
-                                                    task.copyWith(
-                                                        isCompleted: value ?? false),
-                                                  ));
-                                                },
-                                              ),
-                                              const CircleAvatar(
-                                                backgroundImage: AssetImage('assets/cat.png'),
-                                              ),
-                                            ],
-                                          ),
-                                          title: Text(
-                                            task.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              decoration: task.isCompleted
-                                                  ? TextDecoration.lineThrough
-                                                  : null,
+                                              },
                                             ),
+                                            const CircleAvatar(
+                                              backgroundImage: AssetImage('assets/cat.png'),
+                                            ),
+                                          ],
+                                        ),
+                                        title: Text(
+                                          task.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            decoration: task.isCompleted ? TextDecoration.lineThrough : null,
                                           ),
-                                          subtitle: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              if (isMainList && taskList != null)
-                                                Text('Список: ${taskList.name}'),
-                                              Text(task.ownerId == taskState.userId
-                                                  ? 'Вы'
-                                                  : 'Другой'),
-                                              if (task.priority != null)
-                                                Text('Приоритет: ${task.priority}'),
-                                              if (task.deadline != null)
-                                                Text(
-                                                  'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
-                                                ),
-                                            ],
-                                          ),
-                                          trailing: Text(
-                                            task.deadline != null
-                                                ? DateFormat('dd.MM')
-                                                .format(task.deadline!.toDate())
-                                                : '',
-                                          ),
+                                        ),
+                                        subtitle: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            if (isMainList && taskList != null)
+                                              Text('Список: ${taskList.name}'),
+                                            Text(task.ownerId == taskState.userId ? 'Вы' : 'Другой'),
+                                            if (task.priority != null) Text('Приоритет: ${task.priority}'),
+                                            if (task.deadline != null)
+                                              Text(
+                                                'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
+                                              ),
+                                          ],
+                                        ),
+                                        trailing: Text(
+                                          task.deadline != null
+                                              ? DateFormat('dd.MM').format(task.deadline!.toDate())
+                                              : '',
                                         ),
                                       ),
                                     ),
@@ -503,9 +533,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 },
                               ),
                             );
-                          }
-                          if (taskState is TaskError) {
+                          } else if (taskState is TaskError) {
                             return Center(child: Text(taskState.message));
+                          } else {
+                            return const Center(child: Text('Ожидание загрузки задач'));
                           }
                         }
                         return const Center(child: Text('Нет доступных списков'));
@@ -560,10 +591,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
               onTap: (index) {
                 if (index == 0) {
-                  Navigator.push(
-                    navContext,
-                    MaterialPageRoute(builder: (_) => const ListHomeScreen()),
-                  );
+                  Navigator.pushNamed(navContext, '/lists_home');
                 } else if (index == 1) {
                   final state = navContext.read<ListBloc>().state;
                   if (state is ListLoaded && state.lists.isNotEmpty) {

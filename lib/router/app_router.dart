@@ -1,3 +1,4 @@
+import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/screens/friends/friends_screen.dart';
 import 'package:all_at_task/presentation/screens/home/home_screen.dart';
 import 'package:all_at_task/presentation/screens/invitations/invitations_screen.dart';
@@ -9,6 +10,7 @@ import 'package:all_at_task/presentation/screens/profile/profile_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 class AppRouter {
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -29,8 +31,11 @@ class AppRouter {
       case '/list_edit':
         final args = settings.arguments as Map<String, dynamic>?;
         return MaterialPageRoute(
-          builder: (_) => ListEditScreen(
-            list: args?['list'],
+          builder: (context) => BlocProvider.value(
+            value: context.read<ListBloc>(),
+            child: ListEditScreen(
+              list: args?['list'],
+            ),
           ),
         );
       case '/profile':

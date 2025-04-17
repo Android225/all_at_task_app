@@ -11,6 +11,6 @@ void setupServiceLocator() {
   getIt.registerSingleton<AppRouter>(AppRouter());
   getIt.registerFactory<AuthBloc>(() => AuthBloc());
   getIt.registerFactory<TaskBloc>(() => TaskBloc());
-  getIt.registerFactory<ListBloc>(() => ListBloc());
+  getIt.registerSingleton<ListBloc>(ListBloc());
   getIt.registerFactory<InvitationBloc>(() => InvitationBloc());
 }

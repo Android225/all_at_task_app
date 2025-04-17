@@ -1,5 +1,6 @@
 part of 'list_bloc.dart';
 
+
 @immutable
 sealed class ListEvent {}
 
@@ -8,10 +9,17 @@ final class LoadLists extends ListEvent {}
 final class AddList extends ListEvent {
   final String name;
   final String? description;
-  final int color;
+  final String? color;
   final List<String> sharedLists;
+  final List<String> linkedLists;
 
-  AddList(this.name, {this.description, this.color = 0xFF2196F3, this.sharedLists = const []});
+  AddList(
+      this.name, {
+        this.description,
+        this.color = '0xFF2196F3',
+        this.sharedLists = const [],
+        this.linkedLists = const [],
+      });
 }
 
 final class SelectList extends ListEvent {
