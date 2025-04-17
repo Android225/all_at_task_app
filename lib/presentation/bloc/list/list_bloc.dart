@@ -51,8 +51,14 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id))
           .toList();
 
-      final allLists = [...ownerLists, ...memberLists];
-      print('ListBloc: Loaded ${allLists.length} lists');
+      // Объединяем списки и убираем дубликаты по id
+      final allListsMap = <String, TaskList>{};
+      for (var list in [...ownerLists, ...memberLists]) {
+        allListsMap[list.id] = list;
+      }
+      final allLists = allListsMap.values.toList();
+
+      print('ListBloc: Loaded ${allLists.length} unique lists');
       emit(ListLoaded(lists: allLists, userId: userId));
     } catch (e) {
       print('ListBloc: Error loading lists: $e');

@@ -23,7 +23,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
     context.read<ListBloc>().add(LoadLists(userId: widget.userId));
   }
 
-  void _showCreateListDialog(BuildContext context) {
+  void _showCreateListDialog(BuildContext parentContext) {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
     int? selectedColor;
@@ -45,10 +45,10 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
     selectedColor = availableColors[0]; // Цвет по умолчанию
 
     showDialog(
-      context: context,
-      builder: (context) {
+      context: parentContext,
+      builder: (dialogContext) {
         return StatefulBuilder(
-          builder: (context, setState) {
+          builder: (dialogContext, setState) {
             return AlertDialog(
               title: const Text('Создать список'),
               content: SingleChildScrollView(
@@ -105,7 +105,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(dialogContext),
                   child: const Text('Отмена'),
                 ),
                 ElevatedButton(
@@ -124,8 +124,8 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                         sharedLists: [],
                       );
                       print('ListHomeScreen: Adding list: ${newList.name}');
-                      context.read<ListBloc>().add(AddList(newList));
-                      Navigator.pop(context);
+                      parentContext.read<ListBloc>().add(AddList(newList));
+                      Navigator.pop(dialogContext);
                     }
                   },
                   child: const Text('Создать'),
