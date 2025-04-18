@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
+import 'package:all_at_task/data/models/task_list.dart';
 
 part 'auth_event.dart';
 part 'auth_state.dart';
@@ -59,7 +60,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         // Обновляем displayName в FirebaseAuth
         await user.updateDisplayName(event.name);
 
-        // Сохраняем полные данные пользователя в Firestore
+        // Сохраняем данные пользователя в Firestore
         await _firestore.collection('users').doc(user.uid).set({
           'email': event.email,
           'name': event.name,
@@ -67,14 +68,30 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
           'createdAt': FieldValue.serverTimestamp(),
         });
 
-        // Создаем список "Основной" для нового пользователя
+        // Создаем список "Основной"
         final listId = const Uuid().v4();
-        await _firestore.collection('lists').doc(listId).set({
-          'id': listId,
-          'name': 'Основной',
-          'ownerId': user.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-          'members': {user.uid: 'admin'},
+        final mainList = TaskList(
+          id: listId,
+          name: 'Основной',
+          ownerId: user.uid,
+          createdAt: DateTime.now(),
+          members: {user.uid: 'owner'},
+          sharedLists: [],
+          description: null,
+          color: null,
+          lastUsed: null,
+        );
+        await _firestore.collection('lists').doc(listId).set(mainList.toMap());
+
+        // Добавляем список в users/{uid}/lists
+        await _firestore
+            .collection('users')
+            .doc(user.uid)
+            .collection('lists')
+            .doc(listId)
+            .set({
+          'listId': listId,
+          'addedAt': FieldValue.serverTimestamp(),
         });
 
         emit(AuthSignUpSuccess());

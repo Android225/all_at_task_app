@@ -33,6 +33,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       }
 
       print('ListBloc: Loading lists for user $userId');
+      // Запрос списков, где пользователь является владельцем
       final ownerSnapshot = await FirebaseFirestore.instance
           .collection('lists')
           .where('ownerId', isEqualTo: userId)
@@ -42,16 +43,35 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id))
           .toList();
 
-      final memberSnapshot = await FirebaseFirestore.instance
+      // Запрос идентификаторов списков из users/{uid}/lists
+      final userListsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
           .collection('lists')
-          .where('members.$userId', isNotEqualTo: null)
-          .orderBy('createdAt', descending: true)
+          .orderBy('addedAt', descending: true)
           .get();
-      final memberLists = memberSnapshot.docs
-          .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id))
+      final listIds = userListsSnapshot.docs
+          .map((doc) => doc.data()['listId'] as String)
           .toList();
 
-      // Объединяем списки и убираем дубликаты по id
+      // Загружаем списки по идентификаторам
+      final memberLists = <TaskList>[];
+      if (listIds.isNotEmpty) {
+        // Разбиваем listIds на группы по 10, так как whereIn поддерживает до 10 элементов
+        const batchSize = 10;
+        for (var i = 0; i < listIds.length; i += batchSize) {
+          final batchIds = listIds.sublist(
+              i, i + batchSize > listIds.length ? listIds.length : i + batchSize);
+          final memberSnapshot = await FirebaseFirestore.instance
+              .collection('lists')
+              .where(FieldPath.documentId, whereIn: batchIds)
+              .get();
+          memberLists.addAll(memberSnapshot.docs
+              .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id)));
+        }
+      }
+
+      // Объединяем списки и убираем дубликаты
       final allListsMap = <String, TaskList>{};
       for (var list in [...ownerLists, ...memberLists]) {
         allListsMap[list.id] = list;
@@ -69,10 +89,25 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onAddList(AddList event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Adding list: ${event.list.name}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.list.id)
           .set(event.list.toMap());
+      // Добавляем список в users/{uid}/lists
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('lists')
+          .doc(event.list.id)
+          .set({
+        'listId': event.list.id,
+        'addedAt': FieldValue.serverTimestamp(),
+      });
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
         emit(ListLoaded(
@@ -109,7 +144,19 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onDeleteList(DeleteList event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Deleting list: ${event.listId}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
       await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.listId)
+          .delete();
+      // Удаляем из users/{uid}/lists
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
           .collection('lists')
           .doc(event.listId)
           .delete();
@@ -185,17 +232,31 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       }
 
       print('ListBloc: Searching for: ${event.query}');
-      final listsSnapshot = await FirebaseFirestore.instance
+      // Получаем списки из users/{uid}/lists
+      final userListsSnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
           .collection('lists')
-          .where('ownerId', isEqualTo: userId)
           .get();
-      final memberListsSnapshot = await FirebaseFirestore.instance
-          .collection('lists')
-          .where('members.$userId', isNotEqualTo: null)
-          .get();
-      final allLists = [...listsSnapshot.docs, ...memberListsSnapshot.docs]
-          .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id))
+      final listIds = userListsSnapshot.docs
+          .map((doc) => doc.data()['listId'] as String)
           .toList();
+
+      final allLists = <TaskList>[];
+      if (listIds.isNotEmpty) {
+        // Разбиваем listIds на группы по 10
+        const batchSize = 10;
+        for (var i = 0; i < listIds.length; i += batchSize) {
+          final batchIds = listIds.sublist(
+              i, i + batchSize > listIds.length ? listIds.length : i + batchSize);
+          final listsSnapshot = await FirebaseFirestore.instance
+              .collection('lists')
+              .where(FieldPath.documentId, whereIn: batchIds)
+              .get();
+          allLists.addAll(listsSnapshot.docs
+              .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id)));
+        }
+      }
 
       final matchingLists = allLists
           .where((list) =>
@@ -229,11 +290,26 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       UpdateMemberRole event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Updating member role for user ${event.userId} in list ${event.listId}');
+      final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (currentUserId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
           .update({
         'members.${event.userId}': event.role,
+      });
+      // Добавляем или обновляем список в users/{uid}/lists для нового участника
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(event.userId)
+          .collection('lists')
+          .doc(event.listId)
+          .set({
+        'listId': event.listId,
+        'addedAt': FieldValue.serverTimestamp(),
       });
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;

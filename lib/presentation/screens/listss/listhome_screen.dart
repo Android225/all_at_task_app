@@ -118,7 +118,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                         description: descriptionController.text.isNotEmpty
                             ? descriptionController.text
                             : null,
-                        color: selectedColor ?? 0xFF2196F3,
+                        color: selectedColor,
                         createdAt: DateTime.now(),
                         members: {widget.userId: 'owner'},
                         sharedLists: [],
@@ -152,6 +152,9 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             return const Center(child: CircularProgressIndicator());
           } else if (state is ListLoaded) {
             print('ListHomeScreen: Loaded ${state.lists.length} lists');
+            if (state.lists.isEmpty) {
+              return const Center(child: Text('Нет списков'));
+            }
             return ListView.builder(
               itemCount: state.lists.length,
               itemBuilder: (context, index) {
@@ -199,7 +202,21 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             );
           } else if (state is ListError) {
             print('ListHomeScreen: Error: ${state.message}');
-            return Center(child: Text('Ошибка: ${state.message}'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text('Ошибка: ${state.message}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () => context
+                        .read<ListBloc>()
+                        .add(LoadLists(userId: widget.userId)),
+                    child: const Text('Повторить'),
+                  ),
+                ],
+              ),
+            );
           }
           return const Center(child: Text('Нет списков'));
         },

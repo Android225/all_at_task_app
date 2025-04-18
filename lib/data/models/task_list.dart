@@ -25,6 +25,9 @@ class TaskList extends Equatable {
   });
 
   factory TaskList.fromMap(Map<String, dynamic> map) {
+    if (!map.containsKey('members') || !map.containsKey('sharedLists')) {
+      print('TaskList.fromMap: Missing fields in map: $map');
+    }
     return TaskList(
       id: map['id'] ?? '',
       name: map['name'] ?? '',
