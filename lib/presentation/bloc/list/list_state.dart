@@ -23,15 +23,17 @@ class ListLoading extends ListState {
 class ListLoaded extends ListState {
   final List<TaskList> lists;
   final String? selectedListId;
+  final List<Task>? tasks;
 
   const ListLoaded({
     required this.lists,
     required String userId,
     this.selectedListId,
+    this.tasks,
   }) : super(userId);
 
   @override
-  List<Object> get props => [lists, userId, selectedListId ?? ''];
+  List<Object> get props => [lists, userId, selectedListId ?? '', tasks ?? []];
 }
 
 class ListSearchResults extends ListState {

@@ -1,44 +1,73 @@
 part of 'task_bloc.dart';
 
-@immutable
-sealed class TaskEvent {}
+abstract class TaskEvent extends Equatable {
+  const TaskEvent();
 
-final class LoadTasks extends TaskEvent {
-  final String listId;
-  LoadTasks(this.listId);
+  @override
+  List<Object?> get props => [];
 }
 
-final class AddTask extends TaskEvent {
+class LoadTasks extends TaskEvent {
+  final String listId;
+
+  const LoadTasks(this.listId);
+
+  @override
+  List<Object?> get props => [listId];
+}
+
+class AddTask extends TaskEvent {
   final String title;
   final String? description;
   final Timestamp? deadline;
   final String listId;
-  final String priority;
+  final String? priority;
   final String ownerId;
   final String assignedTo;
   final bool isCompleted;
   final bool isFavorite;
 
-  AddTask({
+  const AddTask({
     required this.title,
     this.description,
     this.deadline,
     required this.listId,
-    required this.priority,
+    this.priority,
     required this.ownerId,
     required this.assignedTo,
     required this.isCompleted,
     required this.isFavorite,
   });
+
+  @override
+  List<Object?> get props => [
+    title,
+    description,
+    deadline,
+    listId,
+    priority,
+    ownerId,
+    assignedTo,
+    isCompleted,
+    isFavorite,
+  ];
 }
 
-final class UpdateTask extends TaskEvent {
+class UpdateTask extends TaskEvent {
   final Task task;
-  UpdateTask(this.task);
+
+  const UpdateTask(this.task);
+
+  @override
+  List<Object?> get props => [task];
 }
 
-final class DeleteTask extends TaskEvent {
+class DeleteTask extends TaskEvent {
   final String taskId;
   final String listId;
-  DeleteTask(this.taskId, this.listId);
+
+  const DeleteTask(this.taskId, this.listId);
+
+  @override
+  List<Object?> get props => [taskId, listId];
 }

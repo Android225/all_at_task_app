@@ -80,3 +80,22 @@ class UpdateMemberRole extends ListEvent {
   @override
   List<Object> get props => [listId, userId, role];
 }
+
+class LoadTasksForList extends ListEvent {
+  final String listId;
+
+  const LoadTasksForList(this.listId);
+
+  @override
+  List<Object> get props => [listId];
+}
+
+class ConnectListToMain extends ListEvent {
+  final String listId;
+  final bool connect;
+
+  const ConnectListToMain(this.listId, this.connect);
+
+  @override
+  List<Object> get props => [listId, connect];
+}

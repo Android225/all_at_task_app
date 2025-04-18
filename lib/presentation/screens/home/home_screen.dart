@@ -240,7 +240,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                   .read<ListBloc>()
                                   .add(UpdateListLastUsed(list.id));
                               context.read<ListBloc>().add(SelectList(list.id));
-                              context.read<TaskBloc>().add(LoadTasks(list.id));
+                              if (list.name.toLowerCase() != 'основной') {
+                                context.read<TaskBloc>().add(LoadTasks(list.id));
+                              }
                             },
                             child: Chip(
                               label: Text(list.name),
@@ -320,7 +322,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                         print('HomeScreen: Auto-selecting main list: ${mainList.id}');
                         context.read<ListBloc>().add(SelectList(mainList.id));
-                        context.read<TaskBloc>().add(LoadTasks(mainList.id));
                         _isInitialSelectionDone = true;
                       } else if (state is ListError) {
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -369,9 +370,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                           context
                                               .read<ListBloc>()
                                               .add(SelectList(result.id));
-                                          context
-                                              .read<TaskBloc>()
-                                              .add(LoadTasks(result.id));
+                                          if (result.name.toLowerCase() != 'основной') {
+                                            context
+                                                .read<TaskBloc>()
+                                                .add(LoadTasks(result.id));
+                                          }
                                           setState(() {
                                             _isSearchVisible = false;
                                             _searchController.clear();
@@ -394,9 +397,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                           context
                                               .read<ListBloc>()
                                               .add(SelectList(result.listId));
-                                          context
-                                              .read<TaskBloc>()
-                                              .add(LoadTasks(result.listId));
+                                          if (list.name.toLowerCase() != 'основной') {
+                                            context
+                                                .read<TaskBloc>()
+                                                .add(LoadTasks(result.listId));
+                                          }
                                           setState(() {
                                             _isSearchVisible = false;
                                             _searchController.clear();
@@ -418,196 +423,234 @@ class _HomeScreenState extends State<HomeScreen> {
                         }
                         if (listState is ListError) {
                           return Center(
-                              child: Text('Ошибка: ${listState.message}'));
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Ошибка: ${listState.message}'),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: () => context
+                                        .read<ListBloc>()
+                                        .add(LoadLists(userId: userId)),
+                                    child: const Text('Повторить'),
+                                  ),
+                                ],
+                              ));
                         }
                         if (listState is ListLoaded &&
                             listState.lists.isNotEmpty) {
-                          if (taskState is TaskLoaded) {
-                            final isMainList = listState.selectedListId != null &&
-                                listState.lists
-                                    .firstWhere(
-                                        (l) => l.id == listState.selectedListId!)
-                                    .name
-                                    .toLowerCase() ==
-                                    'основной';
-                            final displayTasks = isMainList
-                                ? taskState.tasks
-                                .where((task) => listState.lists
-                                .any((list) => list.id == task.listId))
-                                .toList()
-                                : taskState.tasks;
-                            return RefreshIndicator(
-                              onRefresh: () async {
-                                final taskBloc = context.read<TaskBloc>();
-                                if (listState.selectedListId != null) {
-                                  print('HomeScreen: Refreshing tasks for list: ${listState.selectedListId}');
+                          final isMainList = listState.selectedListId != null &&
+                              listState.lists
+                                  .firstWhere(
+                                      (l) => l.id == listState.selectedListId!)
+                                  .name
+                                  .toLowerCase() ==
+                                  'основной';
+                          final displayTasks = isMainList
+                              ? (listState.tasks ?? [])
+                              : (taskState is TaskLoaded ? taskState.tasks : []);
+                          return RefreshIndicator(
+                            onRefresh: () async {
+                              final taskBloc = context.read<TaskBloc>();
+                              final listBloc = context.read<ListBloc>();
+                              if (listState.selectedListId != null) {
+                                print('HomeScreen: Refreshing tasks for list: ${listState.selectedListId}');
+                                if (isMainList) {
+                                  listBloc
+                                      .add(LoadTasksForList(listState.selectedListId!));
+                                } else {
                                   taskBloc
                                       .add(LoadTasks(listState.selectedListId!));
                                 }
-                              },
-                              child: displayTasks.isEmpty
-                                  ? const Center(child: Text('Нет задач'))
-                                  : ListView.builder(
-                                itemCount: displayTasks.length,
-                                itemBuilder: (context, index) {
-                                  final task = displayTasks[index];
-                                  final taskList = isMainList
-                                      ? listState.lists.firstWhere(
-                                          (l) => l.id == task.listId)
-                                      : null;
-                                  return ClipRRect(
-                                    borderRadius:
-                                    BorderRadius.circular(20),
-                                    child: Slidable(
-                                      key: Key(task.id),
-                                      endActionPane: ActionPane(
-                                        motion: const ScrollMotion(),
-                                        children: [
-                                          SlidableAction(
-                                            onPressed: (_) {
-                                              print('HomeScreen: Toggling favorite for task: ${task.id}');
+                              }
+                            },
+                            child: displayTasks.isEmpty
+                                ? const Center(child: Text('Нет задач'))
+                                : ListView.builder(
+                              itemCount: displayTasks.length,
+                              itemBuilder: (context, index) {
+                                final task = displayTasks[index];
+                                final taskList = isMainList
+                                    ? listState.lists.firstWhere(
+                                        (l) => l.id == task.listId)
+                                    : null;
+                                return ClipRRect(
+                                  borderRadius:
+                                  BorderRadius.circular(20),
+                                  child: Slidable(
+                                    key: Key(task.id),
+                                    endActionPane: ActionPane(
+                                      motion: const ScrollMotion(),
+                                      children: [
+                                        SlidableAction(
+                                          onPressed: (_) {
+                                            print('HomeScreen: Toggling favorite for task: ${task.id}');
+                                            context
+                                                .read<TaskBloc>()
+                                                .add(UpdateTask(
+                                              task.copyWith(
+                                                  isFavorite: !task
+                                                      .isFavorite),
+                                            ));
+                                          },
+                                          backgroundColor: Colors.yellow,
+                                          foregroundColor: Colors.white,
+                                          icon: Icons.star,
+                                          label: 'Избранное',
+                                        ),
+                                        SlidableAction(
+                                          onPressed: (_) async {
+                                            final date =
+                                            await showDatePicker(
+                                              context: context,
+                                              initialDate: task.deadline
+                                                  ?.toDate() ??
+                                                  DateTime.now(),
+                                              firstDate: DateTime.now(),
+                                              lastDate: DateTime(2030),
+                                            );
+                                            if (date != null) {
+                                              print('HomeScreen: Updating deadline for task: ${task.id}');
                                               context
                                                   .read<TaskBloc>()
                                                   .add(UpdateTask(
                                                 task.copyWith(
-                                                    isFavorite: !task
-                                                        .isFavorite),
+                                                    deadline: Timestamp
+                                                        .fromDate(
+                                                        date)),
                                               ));
-                                            },
-                                            backgroundColor: Colors.yellow,
-                                            foregroundColor: Colors.white,
-                                            icon: Icons.star,
-                                            label: 'Избранное',
-                                          ),
-                                          SlidableAction(
-                                            onPressed: (_) async {
-                                              final date =
-                                              await showDatePicker(
-                                                context: context,
-                                                initialDate: task.deadline
-                                                    ?.toDate() ??
-                                                    DateTime.now(),
-                                                firstDate: DateTime.now(),
-                                                lastDate: DateTime(2030),
-                                              );
-                                              if (date != null) {
-                                                print('HomeScreen: Updating deadline for task: ${task.id}');
+                                            }
+                                          },
+                                          backgroundColor: Colors.blue,
+                                          foregroundColor: Colors.white,
+                                          icon: Icons.calendar_today,
+                                          label: 'Дедлайн',
+                                        ),
+                                        SlidableAction(
+                                          onPressed: (_) {
+                                            print('HomeScreen: Deleting task: ${task.id}');
+                                            context.read<TaskBloc>().add(
+                                                DeleteTask(
+                                                    task.id, task.listId));
+                                          },
+                                          backgroundColor: Colors.red,
+                                          foregroundColor: Colors.white,
+                                          icon: Icons.delete,
+                                          label: 'Удалить',
+                                        ),
+                                      ],
+                                    ),
+                                    child: Card(
+                                      elevation: 2,
+                                      color: task.isCompleted
+                                          ? Colors.grey[300]
+                                          : Colors.white,
+                                      child: ListTile(
+                                        contentPadding:
+                                        const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 8),
+                                        leading: Row(
+                                          mainAxisSize:
+                                          MainAxisSize.min,
+                                          children: [
+                                            Checkbox(
+                                              value: task.isCompleted,
+                                              onChanged: (value) {
+                                                print('HomeScreen: Updating completion for task: ${task.id}');
                                                 context
                                                     .read<TaskBloc>()
                                                     .add(UpdateTask(
                                                   task.copyWith(
-                                                      deadline: Timestamp
-                                                          .fromDate(
-                                                          date)),
+                                                      isCompleted:
+                                                      value ??
+                                                          false),
                                                 ));
-                                              }
-                                            },
-                                            backgroundColor: Colors.blue,
-                                            foregroundColor: Colors.white,
-                                            icon: Icons.calendar_today,
-                                            label: 'Дедлайн',
-                                          ),
-                                          SlidableAction(
-                                            onPressed: (_) {
-                                              print('HomeScreen: Deleting task: ${task.id}');
-                                              context.read<TaskBloc>().add(
-                                                  DeleteTask(
-                                                      task.id, task.listId));
-                                            },
-                                            backgroundColor: Colors.red,
-                                            foregroundColor: Colors.white,
-                                            icon: Icons.delete,
-                                            label: 'Удалить',
-                                          ),
-                                        ],
-                                      ),
-                                      child: Card(
-                                        elevation: 2,
-                                        color: task.isCompleted
-                                            ? Colors.grey[300]
-                                            : Colors.white,
-                                        child: ListTile(
-                                          contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 16,
-                                              vertical: 8),
-                                          leading: Row(
-                                            mainAxisSize:
-                                            MainAxisSize.min,
-                                            children: [
-                                              Checkbox(
-                                                value: task.isCompleted,
-                                                onChanged: (value) {
-                                                  print('HomeScreen: Updating completion for task: ${task.id}');
-                                                  context
-                                                      .read<TaskBloc>()
-                                                      .add(UpdateTask(
-                                                    task.copyWith(
-                                                        isCompleted:
-                                                        value ??
-                                                            false),
-                                                  ));
-                                                },
-                                              ),
-                                              const CircleAvatar(
-                                                backgroundImage: AssetImage(
-                                                    'assets/images/cat1.jpg'),
-                                              ),
-                                            ],
-                                          ),
-                                          title: Text(
-                                            task.title,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              decoration:
-                                              task.isCompleted
-                                                  ? TextDecoration
-                                                  .lineThrough
-                                                  : null,
+                                              },
                                             ),
+                                            const CircleAvatar(
+                                              backgroundImage: AssetImage(
+                                                  'assets/images/cat1.jpg'),
+                                            ),
+                                          ],
+                                        ),
+                                        title: Text(
+                                          task.title,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            decoration:
+                                            task.isCompleted
+                                                ? TextDecoration
+                                                .lineThrough
+                                                : null,
                                           ),
-                                          subtitle: Column(
-                                            crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                            children: [
-                                              if (isMainList &&
-                                                  taskList != null)
-                                                Text(
-                                                    'Список: ${taskList.name}'),
-                                              Text(task.ownerId ==
-                                                  taskState.userId
-                                                  ? 'Вы'
-                                                  : 'Другой'),
-                                              if (task.priority != null)
-                                                Text(
-                                                    'Приоритет: ${task.priority}'),
-                                              if (task.deadline != null)
-                                                Text(
-                                                  'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
-                                                ),
-                                            ],
-                                          ),
-                                          trailing: Text(
-                                            task.deadline != null
-                                                ? DateFormat('dd.MM')
-                                                .format(task.deadline!
-                                                .toDate())
-                                                : '',
-                                          ),
+                                        ),
+                                        subtitle: Column(
+                                          crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                          children: [
+                                            if (isMainList &&
+                                                taskList != null)
+                                              Text(
+                                                  'Список: ${taskList.name}'),
+                                            Text(task.ownerId == userId
+                                                ? 'Вы'
+                                                : 'Другой'),
+                                            if (task.priority != null)
+                                              Text(
+                                                  'Приоритет: ${task.priority}'),
+                                            if (task.deadline != null)
+                                              Text(
+                                                'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
+                                              ),
+                                          ],
+                                        ),
+                                        trailing: Text(
+                                          task.deadline != null
+                                              ? DateFormat('dd.MM').format(
+                                              task.deadline!.toDate())
+                                              : '',
                                         ),
                                       ),
                                     ),
-                                  );
-                                },
-                              ),
-                            );
-                          }
-                          if (taskState is TaskError) {
-                            return Center(
-                                child:
-                                Text('Ошибка задач: ${taskState.message}'));
-                          }
+                                  ),
+                                );
+                              },
+                            ),
+                          );
+                        }
+                        if (taskState is TaskError) {
+                          return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text('Ошибка задач: ${taskState.message}'),
+                                  const SizedBox(height: 16),
+                                  ElevatedButton(
+                                    onPressed: () {
+                                      if (listState is ListLoaded &&
+                                          listState.selectedListId != null) {
+                                        if (listState.lists
+                                            .firstWhere((l) =>
+                                        l.id ==
+                                            listState.selectedListId!)
+                                            .name
+                                            .toLowerCase() ==
+                                            'основной') {
+                                          context.read<ListBloc>().add(
+                                              LoadTasksForList(
+                                                  listState.selectedListId!));
+                                        } else {
+                                          context.read<TaskBloc>().add(LoadTasks(
+                                              listState.selectedListId!));
+                                        }
+                                      }
+                                    },
+                                    child: const Text('Повторить'),
+                                  ),
+                                ],
+                              ));
                         }
                         return const Center(
                             child: Text('Нет доступных списков'));

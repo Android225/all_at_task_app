@@ -1,21 +1,31 @@
 part of 'task_bloc.dart';
 
-@immutable
-sealed class TaskState {}
+abstract class TaskState extends Equatable {
+  const TaskState();
 
-final class TaskInitial extends TaskState {}
+  @override
+  List<Object?> get props => [];
+}
 
-final class TaskLoading extends TaskState {}
+class TaskInitial extends TaskState {}
 
-final class TaskLoaded extends TaskState {
+class TaskLoading extends TaskState {}
+
+class TaskLoaded extends TaskState {
   final List<Task> tasks;
   final String userId;
 
-  TaskLoaded(this.tasks, this.userId);
+  const TaskLoaded({required this.tasks, required this.userId});
+
+  @override
+  List<Object?> get props => [tasks, userId];
 }
 
-final class TaskError extends TaskState {
+class TaskError extends TaskState {
   final String message;
 
-  TaskError(this.message);
+  const TaskError(this.message);
+
+  @override
+  List<Object?> get props => [message];
 }

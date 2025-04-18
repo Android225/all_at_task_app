@@ -27,6 +27,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
     final nameController = TextEditingController();
     final descriptionController = TextEditingController();
     int? selectedColor;
+    bool connectToMain = false;
 
     const colorNames = {
       0xFFFF0000: 'Red',
@@ -100,6 +101,16 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                         });
                       },
                     ),
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Подключить к Основному списку'),
+                      value: connectToMain,
+                      onChanged: (value) {
+                        setState(() {
+                          connectToMain = value ?? false;
+                        });
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -125,6 +136,11 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                       );
                       print('ListHomeScreen: Adding list: ${newList.name}');
                       parentContext.read<ListBloc>().add(AddList(newList));
+                      if (connectToMain) {
+                        parentContext
+                            .read<ListBloc>()
+                            .add(ConnectListToMain(newList.id, true));
+                      }
                       Navigator.pop(dialogContext);
                     }
                   },

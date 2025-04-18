@@ -18,6 +18,8 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     on<UpdateListLastUsed>(_onUpdateListLastUsed);
     on<SearchListsAndTasks>(_onSearchListsAndTasks);
     on<UpdateMemberRole>(_onUpdateMemberRole);
+    on<LoadTasksForList>(_onLoadTasksForList);
+    on<ConnectListToMain>(_onConnectListToMain);
   }
 
   Future<void> _onLoadLists(LoadLists event, Emitter<ListState> emit) async {
@@ -33,7 +35,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       }
 
       print('ListBloc: Loading lists for user $userId');
-      // Запрос списков, где пользователь является владельцем
       final ownerSnapshot = await FirebaseFirestore.instance
           .collection('lists')
           .where('ownerId', isEqualTo: userId)
@@ -43,7 +44,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .map((doc) => TaskList.fromMap(doc.data()..['id'] = doc.id))
           .toList();
 
-      // Запрос идентификаторов списков из users/{uid}/lists
       final userListsSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -54,10 +54,8 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .map((doc) => doc.data()['listId'] as String)
           .toList();
 
-      // Загружаем списки по идентификаторам
       final memberLists = <TaskList>[];
       if (listIds.isNotEmpty) {
-        // Разбиваем listIds на группы по 10, так как whereIn поддерживает до 10 элементов
         const batchSize = 10;
         for (var i = 0; i < listIds.length; i += batchSize) {
           final batchIds = listIds.sublist(
@@ -71,7 +69,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         }
       }
 
-      // Объединяем списки и убираем дубликаты
       final allListsMap = <String, TaskList>{};
       for (var list in [...ownerLists, ...memberLists]) {
         allListsMap[list.id] = list;
@@ -98,7 +95,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .collection('lists')
           .doc(event.list.id)
           .set(event.list.toMap());
-      // Добавляем список в users/{uid}/lists
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -133,7 +129,12 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         final updatedLists = currentState.lists
             .map((list) => list.id == event.list.id ? event.list : list)
             .toList();
-        emit(ListLoaded(lists: updatedLists, userId: currentState.userId));
+        emit(ListLoaded(
+          lists: updatedLists,
+          userId: currentState.userId,
+          selectedListId: currentState.selectedListId,
+          tasks: currentState.tasks,
+        ));
       }
     } catch (e) {
       print('ListBloc: Error updating list: $e');
@@ -149,11 +150,28 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         emit(ListError('Пользователь не авторизован'));
         return;
       }
+      // Удаляем из sharedLists "Основного" списка
+      final mainListSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .where('ownerId', isEqualTo: userId)
+          .where('name', isEqualTo: 'Основной')
+          .get();
+      if (mainListSnapshot.docs.isNotEmpty) {
+        final mainList = mainListSnapshot.docs.first;
+        final mainListData = TaskList.fromMap(mainList.data()..['id'] = mainList.id);
+        if (mainListData.sharedLists.contains(event.listId)) {
+          final updatedSharedLists = List<String>.from(mainListData.sharedLists)
+            ..remove(event.listId);
+          await FirebaseFirestore.instance
+              .collection('lists')
+              .doc(mainList.id)
+              .update({'sharedLists': updatedSharedLists});
+        }
+      }
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
           .delete();
-      // Удаляем из users/{uid}/lists
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -164,7 +182,12 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         final currentState = state as ListLoaded;
         final updatedLists =
         currentState.lists.where((list) => list.id != event.listId).toList();
-        emit(ListLoaded(lists: updatedLists, userId: currentState.userId));
+        emit(ListLoaded(
+          lists: updatedLists,
+          userId: currentState.userId,
+          selectedListId: currentState.selectedListId,
+          tasks: currentState.tasks,
+        ));
       }
     } catch (e) {
       print('ListBloc: Error deleting list: $e');
@@ -180,7 +203,9 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         lists: currentState.lists,
         userId: currentState.userId,
         selectedListId: event.listId,
+        tasks: currentState.tasks,
       ));
+      add(LoadTasksForList(event.listId));
     }
   }
 
@@ -204,6 +229,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           lists: updatedLists,
           userId: currentState.userId,
           selectedListId: currentState.selectedListId,
+          tasks: currentState.tasks,
         ));
       }
     } catch (e) {
@@ -232,7 +258,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       }
 
       print('ListBloc: Searching for: ${event.query}');
-      // Получаем списки из users/{uid}/lists
       final userListsSnapshot = await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -244,7 +269,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
 
       final allLists = <TaskList>[];
       if (listIds.isNotEmpty) {
-        // Разбиваем listIds на группы по 10
         const batchSize = 10;
         for (var i = 0; i < listIds.length; i += batchSize) {
           final batchIds = listIds.sublist(
@@ -301,7 +325,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .update({
         'members.${event.userId}': event.role,
       });
-      // Добавляем или обновляем список в users/{uid}/lists для нового участника
       await FirebaseFirestore.instance
           .collection('users')
           .doc(event.userId)
@@ -325,11 +348,136 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           lists: updatedLists,
           userId: currentState.userId,
           selectedListId: currentState.selectedListId,
+          tasks: currentState.tasks,
         ));
       }
     } catch (e) {
       print('ListBloc: Error updating member role: $e');
       emit(ListError('Не удалось обновить роль участника: $e'));
+    }
+  }
+
+  Future<void> _onLoadTasksForList(LoadTasksForList event, Emitter<ListState> emit) async {
+    try {
+      print('ListBloc: Loading tasks for list: ${event.listId}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
+
+      // Находим список
+      final listSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.listId)
+          .get();
+      if (!listSnapshot.exists) {
+        emit(ListError('Список не найден'));
+        return;
+      }
+      final list = TaskList.fromMap(listSnapshot.data()!..['id'] = listSnapshot.id);
+
+      // Загружаем задачи для текущего списка
+      final tasksSnapshot = await FirebaseFirestore.instance
+          .collection('tasks')
+          .where('listId', isEqualTo: event.listId)
+          .get();
+      final tasks = tasksSnapshot.docs
+          .map((doc) => Task.fromMap(doc.data()..['id'] = doc.id))
+          .toList();
+
+      // Если список "Основной", загружаем задачи из sharedLists
+      List<Task> sharedTasks = [];
+      if (list.name.toLowerCase() == 'основной' && list.sharedLists.isNotEmpty) {
+        const batchSize = 10;
+        for (var i = 0; i < list.sharedLists.length; i += batchSize) {
+          final batchIds = list.sharedLists.sublist(
+              i, i + batchSize > list.sharedLists.length ? list.sharedLists.length : i + batchSize);
+          final sharedTasksSnapshot = await FirebaseFirestore.instance
+              .collection('tasks')
+              .where('listId', whereIn: batchIds)
+              .get();
+          sharedTasks.addAll(sharedTasksSnapshot.docs
+              .map((doc) => Task.fromMap(doc.data()..['id'] = doc.id)));
+        }
+      }
+
+      final allTasks = [...tasks, ...sharedTasks];
+      print('ListBloc: Loaded ${allTasks.length} tasks for list ${event.listId}');
+      if (state is ListLoaded) {
+        final currentState = state as ListLoaded;
+        emit(ListLoaded(
+          lists: currentState.lists,
+          userId: currentState.userId,
+          selectedListId: currentState.selectedListId,
+          tasks: allTasks,
+        ));
+      }
+    } catch (e) {
+      print('ListBloc: Error loading tasks: $e');
+      emit(ListError('Не удалось загрузить задачи: $e'));
+    }
+  }
+
+  Future<void> _onConnectListToMain(ConnectListToMain event, Emitter<ListState> emit) async {
+    try {
+      print('ListBloc: Connecting list ${event.listId} to main list');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
+
+      // Находим "Основной" список
+      final mainListSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .where('ownerId', isEqualTo: userId)
+          .where('name', isEqualTo: 'Основной')
+          .get();
+      if (mainListSnapshot.docs.isEmpty) {
+        emit(ListError('Основной список не найден'));
+        return;
+      }
+      final mainList = mainListSnapshot.docs.first;
+      final mainListData = TaskList.fromMap(mainList.data()..['id'] = mainList.id);
+
+      // Обновляем sharedLists
+      final updatedSharedLists = List<String>.from(mainListData.sharedLists);
+      if (event.connect && !updatedSharedLists.contains(event.listId)) {
+        updatedSharedLists.add(event.listId);
+      } else if (!event.connect && updatedSharedLists.contains(event.listId)) {
+        updatedSharedLists.remove(event.listId);
+      } else {
+        return; // Ничего не изменилось
+      }
+
+      await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(mainList.id)
+          .update({'sharedLists': updatedSharedLists});
+
+      if (state is ListLoaded) {
+        final currentState = state as ListLoaded;
+        final updatedLists = currentState.lists.map((list) {
+          if (list.id == mainList.id) {
+            return list.copyWith(sharedLists: updatedSharedLists);
+          }
+          return list;
+        }).toList();
+        emit(ListLoaded(
+          lists: updatedLists,
+          userId: currentState.userId,
+          selectedListId: currentState.selectedListId,
+          tasks: currentState.tasks,
+        ));
+        // Перезагружаем задачи, если выбран "Основной" список
+        if (currentState.selectedListId == mainList.id) {
+          add(LoadTasksForList(mainList.id));
+        }
+      }
+    } catch (e) {
+      print('ListBloc: Error connecting list to main: $e');
+      emit(ListError('Не удалось подключить список: $e'));
     }
   }
 }
