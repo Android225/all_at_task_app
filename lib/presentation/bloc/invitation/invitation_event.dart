@@ -20,6 +20,12 @@ final class RejectFriendRequest extends InvitationEvent {
   RejectFriendRequest(this.requestId);
 }
 
+final class SendInvitation extends InvitationEvent {
+  final String listId;
+  final String inviteeId;
+  SendInvitation(this.listId, this.inviteeId);
+}
+
 final class AcceptInvitation extends InvitationEvent {
   final String invitationId;
   AcceptInvitation(this.invitationId);

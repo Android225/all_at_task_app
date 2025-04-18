@@ -1,167 +1,255 @@
-import 'package:bloc/bloc.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:meta/meta.dart';
-import 'package:uuid/uuid.dart';
 import 'package:all_at_task/data/models/friend_request.dart';
 import 'package:all_at_task/data/models/invitation.dart';
+import 'package:bloc/bloc.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 
 part 'invitation_event.dart';
 part 'invitation_state.dart';
 
 class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final String currentUserId;
 
-  InvitationBloc() : super(InvitationInitial()) {
+  InvitationBloc({required this.currentUserId}) : super(InvitationInitial()) {
     on<LoadInvitations>(_onLoadInvitations);
     on<SendFriendRequest>(_onSendFriendRequest);
     on<AcceptFriendRequest>(_onAcceptFriendRequest);
     on<RejectFriendRequest>(_onRejectFriendRequest);
+    on<SendInvitation>(_onSendInvitation);
     on<AcceptInvitation>(_onAcceptInvitation);
     on<RejectInvitation>(_onRejectInvitation);
   }
 
-  Future<void> _onLoadInvitations(LoadInvitations event, Emitter<InvitationState> emit) async {
+  Future<void> _onLoadInvitations(
+      LoadInvitations event,
+      Emitter<InvitationState> emit,
+      ) async {
     emit(InvitationLoading());
     try {
-      final userId = _auth.currentUser?.uid;
-      if (userId == null) {
-        emit(InvitationError('Пользователь не авторизован'));
-        return;
-      }
+      final friendRequestsSnapshot = await _firestore
+          .collection('friends')
+          .where('userId2', isEqualTo: currentUserId)
+          .where('status', isEqualTo: 'pending')
+          .get();
 
       final invitationsSnapshot = await _firestore
           .collection('invitations')
-          .where('inviteeId', isEqualTo: userId)
+          .where('inviteeId', isEqualTo: currentUserId)
+          .where('status', isEqualTo: 'pending')
           .get();
 
-      final friendRequestsSnapshot = await _firestore
-          .collection('friends')
-          .where('userId2', isEqualTo: userId)
-          .get();
-
-      final invitations = invitationsSnapshot.docs.map((doc) => Invitation.fromMap(doc.data())).toList();
-      final friendRequests = friendRequestsSnapshot.docs.map((doc) => FriendRequest.fromMap(doc.data())).toList();
+      final friendRequests = friendRequestsSnapshot.docs
+          .map((doc) => FriendRequest.fromMap(doc.data()))
+          .toList();
+      final invitations = invitationsSnapshot.docs
+          .map((doc) => Invitation.fromMap(doc.data()))
+          .toList();
 
       emit(InvitationLoaded(invitations, friendRequests));
     } catch (e) {
-      emit(InvitationError('Не удалось загрузить приглашения: $e'));
+      emit(InvitationError('Failed to load invitations: $e'));
     }
   }
 
-  Future<void> _onSendFriendRequest(SendFriendRequest event, Emitter<InvitationState> emit) async {
+  Future<void> _onSendFriendRequest(
+      SendFriendRequest event,
+      Emitter<InvitationState> emit,
+      ) async {
     try {
-      final userId = _auth.currentUser?.uid;
-      if (userId == null) {
-        emit(InvitationError('Пользователь не авторизован'));
-        return;
-      }
-
-      if (event.userId == userId) {
-        emit(InvitationError('Нельзя отправить запрос самому себе'));
-        return;
-      }
-
-      // Проверяем, существует ли пользователь
-      final userDoc = await _firestore.collection('users').doc(event.userId).get();
+      final userDoc = await _firestore
+          .collection('public_profiles')
+          .doc(event.userId)
+          .get();
       if (!userDoc.exists) {
         emit(InvitationError('Пользователь не найден'));
         return;
       }
 
-      // Проверяем, нет ли уже запроса
+      // Проверяем, нет ли уже существующего запроса
       final existingRequest = await _firestore
           .collection('friends')
-          .where('userId1', isEqualTo: userId)
+          .where('userId1', isEqualTo: currentUserId)
           .where('userId2', isEqualTo: event.userId)
+          .where('status', isEqualTo: 'pending')
           .get();
 
       if (existingRequest.docs.isNotEmpty) {
-        emit(InvitationError('Запрос уже отправлен'));
+        emit(InvitationError('Запрос дружбы уже отправлен'));
         return;
       }
 
       final requestId = const Uuid().v4();
-      final request = FriendRequest(
+      final friendRequest = FriendRequest(
         id: requestId,
-        userId1: userId,
+        userId1: currentUserId,
         userId2: event.userId,
         status: 'pending',
         createdAt: Timestamp.now(),
       );
 
-      await _firestore.collection('friends').doc(requestId).set(request.toMap());
-      add(LoadInvitations());
+      await _firestore
+          .collection('friends')
+          .doc(requestId)
+          .set(friendRequest.toMap());
+
+      emit(InvitationSuccess('Запрос дружбы отправлен'));
     } catch (e) {
-      emit(InvitationError('Не удалось отправить запрос: $e'));
+      emit(InvitationError('Failed to send friend request: $e'));
     }
   }
 
-  Future<void> _onAcceptFriendRequest(AcceptFriendRequest event, Emitter<InvitationState> emit) async {
+  Future<void> _onAcceptFriendRequest(
+      AcceptFriendRequest event,
+      Emitter<InvitationState> emit,
+      ) async {
     try {
       await _firestore.collection('friends').doc(event.requestId).update({
         'status': 'accepted',
       });
-      add(LoadInvitations());
+
+      final currentState = state;
+      if (currentState is InvitationLoaded) {
+        final updatedRequests = currentState.friendRequests
+            .where((req) => req.id != event.requestId)
+            .toList();
+        emit(InvitationLoaded(currentState.invitations, updatedRequests));
+      }
+      emit(InvitationSuccess('Запрос дружбы принят'));
     } catch (e) {
-      emit(InvitationError('Не удалось принять запрос: $e'));
+      emit(InvitationError('Failed to accept friend request: $e'));
     }
   }
 
-  Future<void> _onRejectFriendRequest(RejectFriendRequest event, Emitter<InvitationState> emit) async {
+  Future<void> _onRejectFriendRequest(
+      RejectFriendRequest event,
+      Emitter<InvitationState> emit,
+      ) async {
     try {
-      await _firestore.collection('friends').doc(event.requestId).update({
-        'status': 'rejected',
-      });
-      add(LoadInvitations());
+      await _firestore.collection('friends').doc(event.requestId).delete();
+
+      final currentState = state;
+      if (currentState is InvitationLoaded) {
+        final updatedRequests = currentState.friendRequests
+            .where((req) => req.id != event.requestId)
+            .toList();
+        emit(InvitationLoaded(currentState.invitations, updatedRequests));
+      }
+      emit(InvitationSuccess('Запрос дружбы отклонен'));
     } catch (e) {
-      emit(InvitationError('Не удалось отклонить запрос: $e'));
+      emit(InvitationError('Failed to reject friend request: $e'));
     }
   }
 
-  Future<void> _onAcceptInvitation(AcceptInvitation event, Emitter<InvitationState> emit) async {
+  Future<void> _onSendInvitation(
+      SendInvitation event,
+      Emitter<InvitationState> emit,
+      ) async {
     try {
-      final invitationSnapshot = await _firestore.collection('invitations').doc(event.invitationId).get();
-      if (!invitationSnapshot.exists) {
-        emit(InvitationError('Приглашение не найдено'));
+      final listDoc = await _firestore
+          .collection('lists')
+          .doc(event.listId)
+          .get();
+      if (!listDoc.exists) {
+        emit(InvitationError('Список не найден'));
         return;
       }
 
-      final invitation = Invitation.fromMap(invitationSnapshot.data()!);
+      final userDoc = await _firestore
+          .collection('public_profiles')
+          .doc(event.inviteeId)
+          .get();
+      if (!userDoc.exists) {
+        emit(InvitationError('Пользователь не найден'));
+        return;
+      }
+
+      final invitationId = const Uuid().v4();
+      final invitation = Invitation(
+        id: invitationId,
+        listId: event.listId,
+        inviteeId: event.inviteeId,
+        inviterId: currentUserId,
+        status: 'pending',
+        createdAt: Timestamp.now(),
+      );
+
+      await _firestore
+          .collection('invitations')
+          .doc(invitationId)
+          .set(invitation.toMap());
+
+      emit(InvitationSuccess('Приглашение отправлено'));
+    } catch (e) {
+      emit(InvitationError('Failed to send invitation: $e'));
+    }
+  }
+
+  Future<void> _onAcceptInvitation(
+      AcceptInvitation event,
+      Emitter<InvitationState> emit,
+      ) async {
+    try {
+      final invitationDoc = await _firestore
+          .collection('invitations')
+          .doc(event.invitationId)
+          .get();
+      if (!invitationDoc.exists) {
+        emit(InvitationError('Приглашение не найдено'));
+        return;
+      }
+      final invitation = Invitation.fromMap(invitationDoc.data()!);
+
       await _firestore.collection('invitations').doc(event.invitationId).update({
         'status': 'accepted',
       });
 
       await _firestore.collection('lists').doc(invitation.listId).update({
-        'members.${_auth.currentUser!.uid}': 'viewer',
+        'members.$currentUserId': 'viewer',
       });
 
-      // Добавляем список в коллекцию lists пользователя
       await _firestore
           .collection('users')
-          .doc(_auth.currentUser!.uid)
+          .doc(currentUserId)
           .collection('lists')
           .doc(invitation.listId)
           .set({
         'listId': invitation.listId,
-        'addedAt': FieldValue.serverTimestamp(),
+        'addedAt': Timestamp.now(),
       });
 
-      add(LoadInvitations());
+      final currentState = state;
+      if (currentState is InvitationLoaded) {
+        final updatedInvitations = currentState.invitations
+            .where((inv) => inv.id != event.invitationId)
+            .toList();
+        emit(InvitationLoaded(updatedInvitations, currentState.friendRequests));
+      }
+      emit(InvitationSuccess('Приглашение принято'));
     } catch (e) {
-      emit(InvitationError('Не удалось принять приглашение: $e'));
+      emit(InvitationError('Failed to accept invitation: $e'));
     }
   }
 
-  Future<void> _onRejectInvitation(RejectInvitation event, Emitter<InvitationState> emit) async {
+  Future<void> _onRejectInvitation(
+      RejectInvitation event,
+      Emitter<InvitationState> emit,
+      ) async {
     try {
-      await _firestore.collection('invitations').doc(event.invitationId).update({
-        'status': 'rejected',
-      });
-      add(LoadInvitations());
+      await _firestore.collection('invitations').doc(event.invitationId).delete();
+
+      final currentState = state;
+      if (currentState is InvitationLoaded) {
+        final updatedInvitations = currentState.invitations
+            .where((inv) => inv.id != event.invitationId)
+            .toList();
+        emit(InvitationLoaded(updatedInvitations, currentState.friendRequests));
+      }
+      emit(InvitationSuccess('Приглашение отклонено'));
     } catch (e) {
-      emit(InvitationError('Не удалось отклонить приглашение: $e'));
+      emit(InvitationError('Failed to reject invitation: $e'));
     }
   }
 }
