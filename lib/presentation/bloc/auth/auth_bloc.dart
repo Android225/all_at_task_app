@@ -1,19 +1,20 @@
+import 'package:all_at_task/data/repositories/auth_repository.dart';
 import 'package:bloc/bloc.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
-import 'package:all_at_task/data/models/task_list.dart';
 
 part 'auth_event.dart';
 part 'auth_state.dart';
 
 class AuthBloc extends Bloc<AuthEvent, AuthState> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final AuthRepository _authRepository; // Добавляем AuthRepository
 
-  AuthBloc() : super(AuthInitial()) {
+  AuthBloc({AuthRepository? authRepository}) // В конструкторе принимаем AuthRepository
+      : _authRepository = authRepository ?? AuthRepository(),
+        super(AuthInitial()) {
     on<AuthCheck>(_onCheckAuth);
     on<AuthSignIn>(_onSignIn);
     on<AuthSignUp>(_onSignUp);
@@ -51,53 +52,14 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   Future<void> _onSignUp(AuthSignUp event, Emitter<AuthState> emit) async {
     emit(AuthLoading());
     try {
-      final userCredential = await _auth.createUserWithEmailAndPassword(
+      // Вызываем AuthRepository.signUp вместо дублирования логики
+      await _authRepository.signUp(
         email: event.email,
         password: event.password,
+        username: event.username,
+        name: event.name,
       );
-      final user = userCredential.user;
-      if (user != null) {
-        // Обновляем displayName в FirebaseAuth
-        await user.updateDisplayName(event.name);
-
-        // Сохраняем данные пользователя в Firestore
-        await _firestore.collection('users').doc(user.uid).set({
-          'email': event.email,
-          'name': event.name,
-          'username': event.username,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-
-        // Создаем список "Основной"
-        final listId = const Uuid().v4();
-        final mainList = TaskList(
-          id: listId,
-          name: 'Основной',
-          ownerId: user.uid,
-          createdAt: DateTime.now(),
-          members: {user.uid: 'owner'},
-          sharedLists: [],
-          description: null,
-          color: null,
-          lastUsed: null,
-        );
-        await _firestore.collection('lists').doc(listId).set(mainList.toMap());
-
-        // Добавляем список в users/{uid}/lists
-        await _firestore
-            .collection('users')
-            .doc(user.uid)
-            .collection('lists')
-            .doc(listId)
-            .set({
-          'listId': listId,
-          'addedAt': FieldValue.serverTimestamp(),
-        });
-
-        emit(AuthSignUpSuccess());
-      } else {
-        emit(const AuthError('Ошибка регистрации: пользователь не создан'));
-      }
+      emit(AuthSignUpSuccess());
     } catch (e) {
       emit(AuthError('Ошибка регистрации: $e'));
     }

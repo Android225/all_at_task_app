@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:get_it/get_it.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/user_model.dart';
@@ -41,7 +40,13 @@ class AuthRepository {
         print('User saved successfully');
 
         print('Creating public profile for uid: ${user.uid}');
-        await updatePublicProfile(user.uid, username, name);
+        try {
+          await updatePublicProfile(user.uid, username, name);
+          print('Public profile created successfully');
+        } catch (e) {
+          print('Failed to create public profile: $e');
+          throw Exception('Failed to create public profile: $e');
+        }
 
         const uuid = Uuid();
         final listId = uuid.v4();
@@ -78,13 +83,13 @@ class AuthRepository {
 
   Future<void> updatePublicProfile(String userId, String username, String name) async {
     try {
-      print('Creating public profile for userId: $userId, username: $username, name: $name');
+      print('Attempting to create public profile for userId: $userId, username: $username, name: $name');
       await _firestore.collection('public_profiles').doc(userId).set({
         'username': username,
         'name': name,
         'createdAt': Timestamp.now(),
       }, SetOptions(merge: true));
-      print('Public profile created successfully');
+      print('Public profile created successfully in Firestore');
     } catch (e) {
       print('Failed to update public profile: $e');
       throw Exception('Failed to update public profile: $e');
