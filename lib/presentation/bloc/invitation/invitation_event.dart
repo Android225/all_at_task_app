@@ -35,3 +35,8 @@ final class RejectInvitation extends InvitationEvent {
   final String invitationId;
   RejectInvitation(this.invitationId);
 }
+
+final class RemoveFriend extends InvitationEvent {
+  final String requestId;
+  RemoveFriend(this.requestId);
+}

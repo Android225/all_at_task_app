@@ -23,6 +23,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
   @override
   void initState() {
     super.initState();
+    // Отправляем событие LoadInvitations при открытии экрана
+    GetIt.instance<InvitationBloc>().add(LoadInvitations());
     _searchSubject
         .debounceTime(const Duration(milliseconds: 500))
         .listen((query) async {
@@ -37,9 +39,14 @@ class _FriendsScreenState extends State<FriendsScreen> {
               .where('username', isGreaterThanOrEqualTo: query)
               .limit(10)
               .get();
-          print('Search results: ${snapshot.docs.length} users found');
+          // Фильтруем на клиенте по совпадению
+          final filteredDocs = snapshot.docs.where((doc) {
+            final username = (doc.data() as Map<String, dynamic>)['username'] as String;
+            return username.toLowerCase().contains(query.toLowerCase());
+          }).toList();
+          print('Search results: ${filteredDocs.length} users found after filtering');
           setState(() {
-            _searchResults = snapshot.docs;
+            _searchResults = filteredDocs;
             _isSearching = false;
           });
         } catch (e) {
@@ -83,6 +90,29 @@ class _FriendsScreenState extends State<FriendsScreen> {
     print('Friend request event sent to InvitationBloc');
   }
 
+  void _removeFriend(String requestId, String username) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить друга'),
+        content: Text('Вы точно хотите удалить $username из друзей?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () {
+              GetIt.instance<InvitationBloc>().add(RemoveFriend(requestId));
+              Navigator.pop(context);
+            },
+            child: const Text('Да'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,58 +124,67 @@ class _FriendsScreenState extends State<FriendsScreen> {
         padding: const EdgeInsets.all(AppTheme.defaultPadding),
         child: Column(
           children: [
-            BlocListener<InvitationBloc, InvitationState>(
-              bloc: GetIt.instance<InvitationBloc>(),
-              listener: (context, state) {
-                if (state is InvitationSuccess) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.message),
-                      backgroundColor: AppTheme.primaryColor,
+            // Поиск: 2/6 экрана
+            Expanded(
+              flex: 2,
+              child: Column(
+                children: [
+                  BlocListener<InvitationBloc, InvitationState>(
+                    bloc: GetIt.instance<InvitationBloc>(),
+                    listener: (context, state) {
+                      if (state is InvitationSuccess) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(state.message),
+                            backgroundColor: AppTheme.primaryColor,
+                          ),
+                        );
+                      } else if (state is InvitationError) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(state.message),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    child: AppTextField(
+                      controller: _searchController,
+                      labelText: 'Поиск пользователей',
+                      onChanged: _searchUser,
                     ),
-                  );
-                } else if (state is InvitationError) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(state.message),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
-              child: AppTextField(
-                controller: _searchController,
-                labelText: 'Поиск пользователей',
-                onChanged: _searchUser,
+                  ),
+                  const SizedBox(height: AppTheme.defaultPadding),
+                  if (_isSearching)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_searchResults.isNotEmpty)
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _searchResults.length,
+                        itemBuilder: (context, index) {
+                          final userData = _searchResults[index].data() as Map<String, dynamic>;
+                          final userId = _searchResults[index].id;
+                          final username = userData['username'] as String;
+                          final name = userData['name'] as String;
+                          return ListTile(
+                            title: Text(username),
+                            subtitle: Text(name),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.person_add),
+                              onPressed: () => _sendFriendRequest(userId, username),
+                            ),
+                          );
+                        },
+                      ),
+                    )
+                  else if (_searchController.text.isNotEmpty)
+                      const Center(child: Text('Пользователи не найдены')),
+                ],
               ),
             ),
-            const SizedBox(height: AppTheme.defaultPadding),
-            if (_isSearching)
-              const Center(child: CircularProgressIndicator())
-            else if (_searchResults.isNotEmpty)
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _searchResults.length,
-                  itemBuilder: (context, index) {
-                    final userData = _searchResults[index].data() as Map<String, dynamic>;
-                    final userId = _searchResults[index].id;
-                    final username = userData['username'] as String;
-                    final name = userData['name'] as String;
-                    return ListTile(
-                      title: Text(username),
-                      subtitle: Text(name),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.person_add),
-                        onPressed: () => _sendFriendRequest(userId, username),
-                      ),
-                    );
-                  },
-                ),
-              )
-            else if (_searchController.text.isNotEmpty)
-                const Center(child: Text('Пользователи не найдены')),
-            const SizedBox(height: AppTheme.defaultPadding),
+            // Список друзей: 4/6 экрана
             Expanded(
+              flex: 4,
               child: BlocBuilder<InvitationBloc, InvitationState>(
                 bloc: GetIt.instance<InvitationBloc>(),
                 builder: (context, state) {
@@ -177,9 +216,15 @@ class _FriendsScreenState extends State<FriendsScreen> {
                               );
                             }
                             final friendData = snapshot.data!.data() as Map<String, dynamic>;
+                            final username = friendData['username'] as String;
+                            final name = friendData['name'] as String;
                             return ListTile(
-                              title: Text(friendData['username']),
-                              subtitle: Text(friendData['name']),
+                              title: Text(username),
+                              subtitle: Text(name),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _removeFriend(friend.id, username),
+                              ),
                             );
                           },
                         );
@@ -188,7 +233,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   } else if (state is InvitationError) {
                     return Center(child: Text('Ошибка: ${state.message}'));
                   }
-                  return const SizedBox();
+                  return const Center(child: Text('Нет друзей'));
                 },
               ),
             ),

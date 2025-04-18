@@ -21,6 +21,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
     on<SendInvitation>(_onSendInvitation);
     on<AcceptInvitation>(_onAcceptInvitation);
     on<RejectInvitation>(_onRejectInvitation);
+    on<RemoveFriend>(_onRemoveFriend);
   }
 
   Future<void> _onLoadInvitations(
@@ -30,15 +31,38 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
     print('Handling LoadInvitations for currentUserId: $currentUserId');
     emit(InvitationLoading());
     try {
-      print('Fetching friend requests from Firestore where userId2: $currentUserId, status: pending');
-      final friendRequestsSnapshot = await _firestore
+      // Загружаем входящие запросы (pending, userId2 = currentUserId)
+      print('Fetching pending friend requests where userId2: $currentUserId');
+      final pendingRequestsSnapshot = await _firestore
           .collection('friends')
           .where('userId2', isEqualTo: currentUserId)
           .where('status', isEqualTo: 'pending')
           .get();
-      print('Found ${friendRequestsSnapshot.docs.length} friend requests');
+      print('Found ${pendingRequestsSnapshot.docs.length} pending friend requests');
 
-      print('Fetching invitations from Firestore where inviteeId: $currentUserId, status: pending');
+      // Загружаем друзей (accepted, userId1 = currentUserId или userId2 = currentUserId)
+      print('Fetching accepted friends where userId1 or userId2: $currentUserId');
+      final acceptedRequestsSnapshot = await _firestore
+          .collection('friends')
+          .where('status', isEqualTo: 'accepted')
+          .where('userId1', isEqualTo: currentUserId, arrayContainsAny: [currentUserId])
+          .get();
+      final acceptedRequestsSnapshot2 = await _firestore
+          .collection('friends')
+          .where('status', isEqualTo: 'accepted')
+          .where('userId2', isEqualTo: currentUserId)
+          .get();
+      print('Found ${acceptedRequestsSnapshot.docs.length + acceptedRequestsSnapshot2.docs.length} accepted friends');
+
+      // Объединяем pending и accepted запросы
+      final friendRequests = [
+        ...pendingRequestsSnapshot.docs,
+        ...acceptedRequestsSnapshot.docs,
+        ...acceptedRequestsSnapshot2.docs,
+      ].map((doc) => FriendRequest.fromMap(doc.data())).toList();
+
+      // Загружаем приглашения
+      print('Fetching invitations where inviteeId: $currentUserId, status: pending');
       final invitationsSnapshot = await _firestore
           .collection('invitations')
           .where('inviteeId', isEqualTo: currentUserId)
@@ -46,9 +70,6 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
       print('Found ${invitationsSnapshot.docs.length} invitations');
 
-      final friendRequests = friendRequestsSnapshot.docs
-          .map((doc) => FriendRequest.fromMap(doc.data()))
-          .toList();
       final invitations = invitationsSnapshot.docs
           .map((doc) => Invitation.fromMap(doc.data()))
           .toList();
@@ -265,6 +286,29 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       emit(InvitationSuccess('Приглашение отклонено'));
     } catch (e) {
       emit(InvitationError('Failed to reject invitation: $e'));
+    }
+  }
+
+  Future<void> _onRemoveFriend(
+      RemoveFriend event,
+      Emitter<InvitationState> emit,
+      ) async {
+    print('Handling RemoveFriend for requestId: ${event.requestId}');
+    try {
+      await _firestore.collection('friends').doc(event.requestId).delete();
+      print('Friend removed successfully: ${event.requestId}');
+
+      final currentState = state;
+      if (currentState is InvitationLoaded) {
+        final updatedRequests = currentState.friendRequests
+            .where((req) => req.id != event.requestId)
+            .toList();
+        emit(InvitationLoaded(currentState.invitations, updatedRequests));
+      }
+      emit(InvitationSuccess('Друг удалён'));
+    } catch (e) {
+      print('Error removing friend: $e');
+      emit(InvitationError('Не удалось удалить друга: $e'));
     }
   }
 }
