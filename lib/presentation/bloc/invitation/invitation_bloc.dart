@@ -25,37 +25,76 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   Future<void> _onLoadInvitations(LoadInvitations event, Emitter<InvitationState> emit) async {
     emit(InvitationLoading());
     try {
-      final userId = _auth.currentUser!.uid;
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) {
+        emit(InvitationError('Пользователь не авторизован'));
+        return;
+      }
+
       final invitationsSnapshot = await _firestore
           .collection('invitations')
           .where('inviteeId', isEqualTo: userId)
           .get();
+
       final friendRequestsSnapshot = await _firestore
           .collection('friends')
           .where('userId2', isEqualTo: userId)
           .get();
+
       final invitations = invitationsSnapshot.docs.map((doc) => Invitation.fromMap(doc.data())).toList();
       final friendRequests = friendRequestsSnapshot.docs.map((doc) => FriendRequest.fromMap(doc.data())).toList();
+
       emit(InvitationLoaded(invitations, friendRequests));
     } catch (e) {
-      emit(InvitationError('Не удалось загрузить приглашения: попробуйте позже'));
+      emit(InvitationError('Не удалось загрузить приглашения: $e'));
     }
   }
 
   Future<void> _onSendFriendRequest(SendFriendRequest event, Emitter<InvitationState> emit) async {
     try {
+      final userId = _auth.currentUser?.uid;
+      if (userId == null) {
+        emit(InvitationError('Пользователь не авторизован'));
+        return;
+      }
+
+      if (event.userId == userId) {
+        emit(InvitationError('Нельзя отправить запрос самому себе'));
+        return;
+      }
+
+      // Проверяем, существует ли пользователь
+      final userDoc = await _firestore.collection('users').doc(event.userId).get();
+      if (!userDoc.exists) {
+        emit(InvitationError('Пользователь не найден'));
+        return;
+      }
+
+      // Проверяем, нет ли уже запроса
+      final existingRequest = await _firestore
+          .collection('friends')
+          .where('userId1', isEqualTo: userId)
+          .where('userId2', isEqualTo: event.userId)
+          .get();
+
+      if (existingRequest.docs.isNotEmpty) {
+        emit(InvitationError('Запрос уже отправлен'));
+        return;
+      }
+
       final requestId = const Uuid().v4();
       final request = FriendRequest(
         id: requestId,
-        userId1: _auth.currentUser!.uid,
+        userId1: userId,
         userId2: event.userId,
         status: 'pending',
         createdAt: Timestamp.now(),
       );
+
       await _firestore.collection('friends').doc(requestId).set(request.toMap());
       add(LoadInvitations());
     } catch (e) {
-      emit(InvitationError('Не удалось отправить запрос: попробуйте позже'));
+      emit(InvitationError('Не удалось отправить запрос: $e'));
     }
   }
 
@@ -66,7 +105,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       });
       add(LoadInvitations());
     } catch (e) {
-      emit(InvitationError('Не удалось принять запрос: попробуйте позже'));
+      emit(InvitationError('Не удалось принять запрос: $e'));
     }
   }
 
@@ -77,23 +116,41 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       });
       add(LoadInvitations());
     } catch (e) {
-      emit(InvitationError('Не удалось отклонить запрос: попробуйте позже'));
+      emit(InvitationError('Не удалось отклонить запрос: $e'));
     }
   }
 
   Future<void> _onAcceptInvitation(AcceptInvitation event, Emitter<InvitationState> emit) async {
     try {
       final invitationSnapshot = await _firestore.collection('invitations').doc(event.invitationId).get();
+      if (!invitationSnapshot.exists) {
+        emit(InvitationError('Приглашение не найдено'));
+        return;
+      }
+
       final invitation = Invitation.fromMap(invitationSnapshot.data()!);
       await _firestore.collection('invitations').doc(event.invitationId).update({
         'status': 'accepted',
       });
+
       await _firestore.collection('lists').doc(invitation.listId).update({
         'members.${_auth.currentUser!.uid}': 'viewer',
       });
+
+      // Добавляем список в коллекцию lists пользователя
+      await _firestore
+          .collection('users')
+          .doc(_auth.currentUser!.uid)
+          .collection('lists')
+          .doc(invitation.listId)
+          .set({
+        'listId': invitation.listId,
+        'addedAt': FieldValue.serverTimestamp(),
+      });
+
       add(LoadInvitations());
     } catch (e) {
-      emit(InvitationError('Не удалось принять приглашение: попробуйте позже'));
+      emit(InvitationError('Не удалось принять приглашение: $e'));
     }
   }
 
@@ -104,7 +161,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       });
       add(LoadInvitations());
     } catch (e) {
-      emit(InvitationError('Не удалось отклонить приглашение: попробуйте позже'));
+      emit(InvitationError('Не удалось отклонить приглашение: $e'));
     }
   }
 }
