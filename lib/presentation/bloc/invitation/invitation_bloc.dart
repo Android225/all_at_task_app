@@ -40,24 +40,28 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
       print('Found ${pendingRequestsSnapshot.docs.length} pending friend requests');
 
-      // Загружаем друзей (accepted, userId1 = currentUserId или userId2 = currentUserId)
-      print('Fetching accepted friends where userId1 or userId2: $currentUserId');
-      final acceptedRequestsSnapshot = await _firestore
+      // Загружаем друзей (accepted, userId1 = currentUserId)
+      print('Fetching accepted friends where userId1: $currentUserId');
+      final acceptedRequestsSnapshot1 = await _firestore
           .collection('friends')
           .where('status', isEqualTo: 'accepted')
-          .where('userId1', isEqualTo: currentUserId, arrayContainsAny: [currentUserId])
+          .where('userId1', isEqualTo: currentUserId)
           .get();
+      print('Found ${acceptedRequestsSnapshot1.docs.length} accepted friends (userId1)');
+
+      // Загружаем друзей (accepted, userId2 = currentUserId)
+      print('Fetching accepted friends where userId2: $currentUserId');
       final acceptedRequestsSnapshot2 = await _firestore
           .collection('friends')
           .where('status', isEqualTo: 'accepted')
           .where('userId2', isEqualTo: currentUserId)
           .get();
-      print('Found ${acceptedRequestsSnapshot.docs.length + acceptedRequestsSnapshot2.docs.length} accepted friends');
+      print('Found ${acceptedRequestsSnapshot2.docs.length} accepted friends (userId2)');
 
       // Объединяем pending и accepted запросы
       final friendRequests = [
         ...pendingRequestsSnapshot.docs,
-        ...acceptedRequestsSnapshot.docs,
+        ...acceptedRequestsSnapshot1.docs,
         ...acceptedRequestsSnapshot2.docs,
       ].map((doc) => FriendRequest.fromMap(doc.data())).toList();
 
@@ -141,20 +145,34 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       AcceptFriendRequest event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling AcceptFriendRequest for requestId: ${event.requestId}');
     try {
+      // Обновляем статус запроса на "accepted"
       await _firestore.collection('friends').doc(event.requestId).update({
         'status': 'accepted',
       });
+      print('Friend request status updated to accepted: ${event.requestId}');
 
+      // Обновляем состояние, чтобы запрос сразу отобразился в списке друзей
       final currentState = state;
       if (currentState is InvitationLoaded) {
-        final updatedRequests = currentState.friendRequests
-            .where((req) => req.id != event.requestId)
-            .toList();
+        final updatedRequests = currentState.friendRequests.map((req) {
+          if (req.id == event.requestId) {
+            return FriendRequest(
+              id: req.id,
+              userId1: req.userId1,
+              userId2: req.userId2,
+              status: 'accepted',
+              createdAt: req.createdAt,
+            );
+          }
+          return req;
+        }).toList();
         emit(InvitationLoaded(currentState.invitations, updatedRequests));
       }
       emit(InvitationSuccess('Запрос дружбы принят'));
     } catch (e) {
+      print('Error accepting friend request: $e');
       emit(InvitationError('Failed to accept friend request: $e'));
     }
   }
@@ -163,8 +181,10 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       RejectFriendRequest event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling RejectFriendRequest for requestId: ${event.requestId}');
     try {
       await _firestore.collection('friends').doc(event.requestId).delete();
+      print('Friend request deleted: ${event.requestId}');
 
       final currentState = state;
       if (currentState is InvitationLoaded) {
@@ -175,6 +195,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       }
       emit(InvitationSuccess('Запрос дружбы отклонен'));
     } catch (e) {
+      print('Error rejecting friend request: $e');
       emit(InvitationError('Failed to reject friend request: $e'));
     }
   }
@@ -183,6 +204,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       SendInvitation event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling SendInvitation for listId: ${event.listId}, inviteeId: ${event.inviteeId}');
     try {
       final listDoc = await _firestore
           .collection('lists')
@@ -216,9 +238,11 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .collection('invitations')
           .doc(invitationId)
           .set(invitation.toMap());
+      print('Invitation written successfully: $invitationId');
 
       emit(InvitationSuccess('Приглашение отправлено'));
     } catch (e) {
+      print('Error sending invitation: $e');
       emit(InvitationError('Failed to send invitation: $e'));
     }
   }
@@ -227,6 +251,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       AcceptInvitation event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling AcceptInvitation for invitationId: ${event.invitationId}');
     try {
       final invitationDoc = await _firestore
           .collection('invitations')
@@ -265,6 +290,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       }
       emit(InvitationSuccess('Приглашение принято'));
     } catch (e) {
+      print('Error accepting invitation: $e');
       emit(InvitationError('Failed to accept invitation: $e'));
     }
   }
@@ -273,8 +299,10 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       RejectInvitation event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling RejectInvitation for invitationId: ${event.invitationId}');
     try {
       await _firestore.collection('invitations').doc(event.invitationId).delete();
+      print('Invitation deleted: ${event.invitationId}');
 
       final currentState = state;
       if (currentState is InvitationLoaded) {
@@ -285,6 +313,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       }
       emit(InvitationSuccess('Приглашение отклонено'));
     } catch (e) {
+      print('Error rejecting invitation: $e');
       emit(InvitationError('Failed to reject invitation: $e'));
     }
   }
