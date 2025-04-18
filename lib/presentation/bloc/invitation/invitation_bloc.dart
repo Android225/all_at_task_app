@@ -27,19 +27,24 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       LoadInvitations event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling LoadInvitations for currentUserId: $currentUserId');
     emit(InvitationLoading());
     try {
+      print('Fetching friend requests from Firestore where userId2: $currentUserId, status: pending');
       final friendRequestsSnapshot = await _firestore
           .collection('friends')
           .where('userId2', isEqualTo: currentUserId)
           .where('status', isEqualTo: 'pending')
           .get();
+      print('Found ${friendRequestsSnapshot.docs.length} friend requests');
 
+      print('Fetching invitations from Firestore where inviteeId: $currentUserId, status: pending');
       final invitationsSnapshot = await _firestore
           .collection('invitations')
           .where('inviteeId', isEqualTo: currentUserId)
           .where('status', isEqualTo: 'pending')
           .get();
+      print('Found ${invitationsSnapshot.docs.length} invitations');
 
       final friendRequests = friendRequestsSnapshot.docs
           .map((doc) => FriendRequest.fromMap(doc.data()))
@@ -48,8 +53,10 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .map((doc) => Invitation.fromMap(doc.data()))
           .toList();
 
+      print('Emitting InvitationLoaded with ${friendRequests.length} friend requests and ${invitations.length} invitations');
       emit(InvitationLoaded(invitations, friendRequests));
     } catch (e) {
+      print('Error loading invitations: $e');
       emit(InvitationError('Failed to load invitations: $e'));
     }
   }
@@ -58,17 +65,20 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       SendFriendRequest event,
       Emitter<InvitationState> emit,
       ) async {
+    print('Handling SendFriendRequest for userId: ${event.userId}, currentUserId: $currentUserId');
     try {
+      print('Checking if user exists in public_profiles: ${event.userId}');
       final userDoc = await _firestore
           .collection('public_profiles')
           .doc(event.userId)
           .get();
       if (!userDoc.exists) {
+        print('User not found in public_profiles: ${event.userId}');
         emit(InvitationError('Пользователь не найден'));
         return;
       }
 
-      // Проверяем, нет ли уже существующего запроса
+      print('Checking for existing friend request');
       final existingRequest = await _firestore
           .collection('friends')
           .where('userId1', isEqualTo: currentUserId)
@@ -77,11 +87,13 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
 
       if (existingRequest.docs.isNotEmpty) {
+        print('Existing friend request found');
         emit(InvitationError('Запрос дружбы уже отправлен'));
         return;
       }
 
       final requestId = const Uuid().v4();
+      print('Creating friend request with id: $requestId');
       final friendRequest = FriendRequest(
         id: requestId,
         userId1: currentUserId,
@@ -90,13 +102,16 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         createdAt: Timestamp.now(),
       );
 
+      print('Writing friend request to Firestore: friends/$requestId');
       await _firestore
           .collection('friends')
           .doc(requestId)
           .set(friendRequest.toMap());
+      print('Friend request written successfully');
 
       emit(InvitationSuccess('Запрос дружбы отправлен'));
     } catch (e) {
+      print('Error sending friend request: $e');
       emit(InvitationError('Failed to send friend request: $e'));
     }
   }

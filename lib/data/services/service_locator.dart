@@ -11,11 +11,11 @@ final getIt = GetIt.instance;
 
 void setupServiceLocator() {
   getIt.registerSingleton<AppRouter>(AppRouter());
-  getIt.registerSingleton<AuthRepository>(AuthRepository()); // Регистрируем AuthRepository
-  getIt.registerFactory<AuthBloc>(() => AuthBloc(authRepository: getIt<AuthRepository>())); // Передаем AuthRepository
+  getIt.registerSingleton<AuthRepository>(AuthRepository());
+  getIt.registerFactory<AuthBloc>(() => AuthBloc(authRepository: getIt<AuthRepository>()));
   getIt.registerFactory<TaskBloc>(() => TaskBloc());
   getIt.registerFactory<ListBloc>(() => ListBloc());
-  getIt.registerFactory<InvitationBloc>(() => InvitationBloc(
+  getIt.registerLazySingleton<InvitationBloc>(() => InvitationBloc(
     currentUserId: FirebaseAuth.instance.currentUser?.uid ?? '',
   ));
 }

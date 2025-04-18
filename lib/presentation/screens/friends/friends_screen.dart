@@ -7,8 +7,6 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:get_it/get_it.dart';
 import 'package:rxdart/rxdart.dart';
 
-
-
 class FriendsScreen extends StatefulWidget {
   const FriendsScreen({super.key});
 
@@ -79,14 +77,10 @@ class _FriendsScreenState extends State<FriendsScreen> {
   }
 
   void _sendFriendRequest(String userId, String username) {
+    print('Sending friend request to userId: $userId, username: $username');
     final invitationBloc = GetIt.instance<InvitationBloc>();
     invitationBloc.add(SendFriendRequest(userId));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Запрос отправлен пользователю $username'),
-        backgroundColor: AppTheme.primaryColor,
-      ),
-    );
+    print('Friend request event sent to InvitationBloc');
   }
 
   @override
@@ -100,10 +94,30 @@ class _FriendsScreenState extends State<FriendsScreen> {
         padding: const EdgeInsets.all(AppTheme.defaultPadding),
         child: Column(
           children: [
-            AppTextField(
-              controller: _searchController,
-              labelText: 'Поиск пользователей',
-              onChanged: _searchUser,
+            BlocListener<InvitationBloc, InvitationState>(
+              bloc: GetIt.instance<InvitationBloc>(),
+              listener: (context, state) {
+                if (state is InvitationSuccess) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: AppTheme.primaryColor,
+                    ),
+                  );
+                } else if (state is InvitationError) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(state.message),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: AppTextField(
+                controller: _searchController,
+                labelText: 'Поиск пользователей',
+                onChanged: _searchUser,
+              ),
             ),
             const SizedBox(height: AppTheme.defaultPadding),
             if (_isSearching)
