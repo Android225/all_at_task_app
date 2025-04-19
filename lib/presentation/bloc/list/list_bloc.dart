@@ -79,7 +79,12 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       final allLists = allListsMap.values.toList();
 
       print('ListBloc: Loaded ${allLists.length} unique lists');
-      emit(ListLoaded(lists: allLists, userId: userId));
+      emit(ListLoaded(
+        lists: allLists,
+        userId: userId,
+        selectedListId: '',
+        tasks: [],
+      ));
     } catch (e) {
       print('ListBloc: Error loading lists: $e');
       emit(ListError('Не удалось загрузить списки: $e'));
@@ -102,10 +107,13 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         lastUsed: null, // При создании списка lastUsed = null
       );
 
+      print('ListBloc: Saving list to Firestore: ${updatedList.toMap()}');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(updatedList.id)
           .set(updatedList.toMap());
+      print('ListBloc: List saved successfully: ${updatedList.id}');
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(userId)
@@ -115,11 +123,21 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         'listId': updatedList.id,
         'addedAt': FieldValue.serverTimestamp(),
       });
+
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
         emit(ListLoaded(
           lists: [...currentState.lists, updatedList],
           userId: currentState.userId,
+          selectedListId: currentState.selectedListId,
+          tasks: currentState.tasks,
+        ));
+      } else {
+        emit(ListLoaded(
+          lists: [updatedList],
+          userId: userId,
+          selectedListId: '',
+          tasks: [],
         ));
       }
     } catch (e) {
@@ -131,15 +149,45 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onUpdateList(UpdateList event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Updating list: ${event.list.id}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
+
+      final listSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.list.id)
+          .get();
+      if (!listSnapshot.exists) {
+        emit(ListError('Список не найден'));
+        return;
+      }
+      final listData = listSnapshot.data();
+      if (listData == null) {
+        emit(ListError('Данные списка не найдены'));
+        return;
+      }
+      final members = Map<String, String>.from(listData['members'] ?? {});
+      if (listData['ownerId'] != userId &&
+          (!members.containsKey(userId) || members[userId] != 'admin')) {
+        emit(ListError('У вас нет прав для редактирования этого списка'));
+        return;
+      }
+
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.list.id)
           .update(event.list.toMap());
+
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
-        final updatedLists = currentState.lists
-            .map((list) => list.id == event.list.id ? event.list : list)
-            .toList();
+        final updatedLists = currentState.lists.map((list) {
+          if (list.id == event.list.id) {
+            return event.list;
+          }
+          return list;
+        }).toList();
         emit(ListLoaded(
           lists: updatedLists,
           userId: currentState.userId,
@@ -161,6 +209,25 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         emit(ListError('Пользователь не авторизован'));
         return;
       }
+
+      final listSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.listId)
+          .get();
+      if (!listSnapshot.exists) {
+        emit(ListError('Список не найден'));
+        return;
+      }
+      final listData = listSnapshot.data();
+      if (listData == null) {
+        emit(ListError('Данные списка не найдены'));
+        return;
+      }
+      if (listData['ownerId'] != userId) {
+        emit(ListError('Только владелец может удалить список'));
+        return;
+      }
+
       // Удаляем из sharedLists "Основного" списка
       final mainListSnapshot = await FirebaseFirestore.instance
           .collection('lists')
@@ -179,6 +246,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
               .update({'sharedLists': updatedSharedLists});
         }
       }
+
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
@@ -189,6 +257,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .collection('lists')
           .doc(event.listId)
           .delete();
+
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
         final updatedLists =
@@ -224,11 +293,37 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       UpdateListLastUsed event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Updating last used for list: ${event.listId}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(ListError('Пользователь не авторизован'));
+        return;
+      }
+
+      final listSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.listId)
+          .get();
+      if (!listSnapshot.exists) {
+        emit(ListError('Список не найден'));
+        return;
+      }
+      final listData = listSnapshot.data();
+      if (listData == null) {
+        emit(ListError('Данные списка не найдены'));
+        return;
+      }
+      final members = Map<String, String>.from(listData['members'] ?? {});
+      if (!members.containsKey(userId)) {
+        emit(ListError('У вас нет доступа к этому списку'));
+        return;
+      }
+
       final now = DateTime.now();
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
           .update({'lastUsed': Timestamp.fromDate(now)});
+
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
         final updatedLists = currentState.lists.map((list) {
@@ -325,18 +420,42 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onUpdateMemberRole(
       UpdateMemberRole event, Emitter<ListState> emit) async {
     try {
-      print('ListBloc: Updating member role for user ${event.userId} in list ${event.listId}');
+      print(
+          'ListBloc: Updating member role for user ${event.userId} in list ${event.listId}');
       final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
       if (currentUserId.isEmpty) {
         emit(ListError('Пользователь не авторизован'));
         return;
       }
+
+      final listSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.listId)
+          .get();
+      if (!listSnapshot.exists) {
+        emit(ListError('Список не найден'));
+        return;
+      }
+      final listData = listSnapshot.data();
+      if (listData == null) {
+        emit(ListError('Данные списка не найдены'));
+        return;
+      }
+      final members = Map<String, String>.from(listData['members'] ?? {});
+      if (listData['ownerId'] != currentUserId &&
+          (!members.containsKey(currentUserId) ||
+              members[currentUserId] != 'admin')) {
+        emit(ListError('У вас нет прав для изменения ролей'));
+        return;
+      }
+
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
           .update({
         'members.${event.userId}': event.role,
       });
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(event.userId)
@@ -346,6 +465,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         'listId': event.listId,
         'addedAt': FieldValue.serverTimestamp(),
       });
+
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
         final updatedLists = currentState.lists.map((list) {
@@ -369,7 +489,8 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     }
   }
 
-  Future<void> _onLoadTasksForList(LoadTasksForList event, Emitter<ListState> emit) async {
+  Future<void> _onLoadTasksForList(
+      LoadTasksForList event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Loading tasks for list: ${event.listId}');
       final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -388,6 +509,11 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         return;
       }
       final list = TaskList.fromMap(listSnapshot.data()!..['id'] = listSnapshot.id);
+      final members = Map<String, String>.from(list.members);
+      if (!members.containsKey(userId)) {
+        emit(ListError('У вас нет доступа к этому списку'));
+        return;
+      }
 
       // Загружаем задачи для текущего списка
       final tasksSnapshot = await FirebaseFirestore.instance
@@ -431,7 +557,8 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     }
   }
 
-  Future<void> _onConnectListToMain(ConnectListToMain event, Emitter<ListState> emit) async {
+  Future<void> _onConnectListToMain(
+      ConnectListToMain event, Emitter<ListState> emit) async {
     try {
       print('ListBloc: Connecting list ${event.listId} to main list');
       final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
@@ -452,6 +579,35 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       }
       final mainList = mainListSnapshot.docs.first;
       final mainListData = TaskList.fromMap(mainList.data()..['id'] = mainList.id);
+
+      // Проверяем права
+      final members = Map<String, String>.from(mainListData.members);
+      if (mainListData.ownerId != userId &&
+          (!members.containsKey(userId) || members[userId] != 'admin')) {
+        emit(ListError('У вас нет прав для изменения основного списка'));
+        return;
+      }
+
+      // Проверяем, можно ли подключить список
+      final listToConnectSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.listId)
+          .get();
+      if (!listToConnectSnapshot.exists) {
+        emit(ListError('Подключаемый список не найден'));
+        return;
+      }
+      final listToConnectData = listToConnectSnapshot.data();
+      if (listToConnectData == null) {
+        emit(ListError('Данные подключаемого списка не найдены'));
+        return;
+      }
+      final listToConnectMembers =
+      Map<String, String>.from(listToConnectData['members'] ?? {});
+      if (!listToConnectMembers.containsKey(userId)) {
+        emit(ListError('У вас нет доступа к подключаемому списку'));
+        return;
+      }
 
       // Обновляем sharedLists
       final updatedSharedLists = List<String>.from(mainListData.sharedLists);
@@ -493,14 +649,19 @@ class ListBloc extends Bloc<ListEvent, ListState> {
     }
   }
 
-  Future<void> _onAddMembersToList(AddMembersToList event, Emitter<ListState> emit) async {
+  Future<void> _onAddMembersToList(
+      AddMembersToList event, Emitter<ListState> emit) async {
     try {
-      print('ListBloc: Adding members to list: ${event.listId}, members: ${event.memberIds}');
+      print(
+          'ListBloc: Adding members to list: ${event.listId}, members: ${event.memberIds}');
       final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
       if (userId.isEmpty) {
         emit(ListError('Пользователь не авторизован'));
         return;
       }
+
+      // Проверяем токен авторизации
+      await FirebaseAuth.instance.currentUser?.reload();
 
       // Загружаем текущий список
       final listSnapshot = await FirebaseFirestore.instance
@@ -511,19 +672,48 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         emit(ListError('Список не найден'));
         return;
       }
-      final list = TaskList.fromMap(listSnapshot.data()!..['id'] = listSnapshot.id);
+      final listData = listSnapshot.data();
+      if (listData == null) {
+        emit(ListError('Данные списка не найдены'));
+        return;
+      }
+      print('ListBloc: List data: $listData');
+      final list = TaskList.fromMap(listData..['id'] = listSnapshot.id);
+
+      // Проверяем права
+      final members = Map<String, String>.from(list.members);
+      if (list.ownerId != userId &&
+          (!members.containsKey(userId) || members[userId] != 'admin')) {
+        emit(ListError('У вас нет прав для добавления участников'));
+        return;
+      }
+
+      // Проверяем, существуют ли пользователи
+      for (var memberId in event.memberIds) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('public_profiles')
+            .doc(memberId)
+            .get();
+        if (!userDoc.exists) {
+          emit(ListError('Пользователь $memberId не найден'));
+          return;
+        }
+      }
 
       // Обновляем members
       final updatedMembers = Map<String, String>.from(list.members);
       for (var memberId in event.memberIds) {
         if (!updatedMembers.containsKey(memberId)) {
           updatedMembers[memberId] = 'viewer';
-          // Отправляем приглашение
-          GetIt.instance<InvitationBloc>().add(SendInvitation(event.listId, memberId));
+          print(
+              'ListBloc: Sending invitation to $memberId for list ${event.listId}');
+          GetIt.instance<InvitationBloc>()
+              .add(SendInvitation(event.listId, memberId));
         }
       }
 
       // Обновляем список в Firestore
+      print('ListBloc: Updating list with new members: $updatedMembers');
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
