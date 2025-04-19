@@ -4,13 +4,29 @@ import 'package:all_at_task/data/models/task_list.dart';
 import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
-import 'package:all_at_task/presentation/screens/listss/listhome_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
+import 'package:rxdart/rxdart.dart';
+
+class SearchResult {
+  final String id; // listId для списка, taskId для задачи
+  final String listId; // listId для задачи (для списка совпадает с id)
+  final String name; // Название списка или задачи
+  final String path; // Путь (/название_списка или /название_списка/название_задачи)
+  final bool isTask; // true для задачи, false для списка
+
+  SearchResult({
+    required this.id,
+    required this.listId,
+    required this.name,
+    required this.path,
+    required this.isTask,
+  });
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,17 +39,138 @@ class _HomeScreenState extends State<HomeScreen> {
   final _searchController = TextEditingController();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final _searchSubject = BehaviorSubject<String>();
+  List<SearchResult> _searchResults = [];
   bool _isSearchVisible = false;
+  bool _isSearching = false;
   DateTime? _selectedDate;
   String _selectedPriority = 'medium';
   bool _isInitialSelectionDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchSubject
+        .debounceTime(const Duration(milliseconds: 500))
+        .listen((query) async {
+      print('HomeScreen: Search query: $query');
+      if (query.isNotEmpty) {
+        setState(() {
+          _isSearching = true;
+        });
+        try {
+          final results = await _searchListsAndTasks(query);
+          setState(() {
+            _searchResults = results;
+            _isSearching = false;
+          });
+        } catch (e) {
+          print('HomeScreen: Search error: $e');
+          if (mounted) {
+            setState(() {
+              _isSearching = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Ошибка поиска: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        setState(() {
+          _searchResults = [];
+          _isSearching = false;
+        });
+      }
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     _titleController.dispose();
     _descriptionController.dispose();
+    _searchSubject.close();
     super.dispose();
+  }
+
+  Future<List<SearchResult>> _searchListsAndTasks(String query) async {
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (userId.isEmpty) return [];
+
+    final lowercaseQuery = query.toLowerCase();
+    final results = <SearchResult>[];
+
+    // Получаем списки из ListBloc
+    final listState = context.read<ListBloc>().state;
+    if (listState is! ListLoaded) return [];
+
+    final lists = listState.lists;
+    for (var list in lists) {
+      if (list.name.toLowerCase().contains(lowercaseQuery)) {
+        results.add(SearchResult(
+          id: list.id,
+          listId: list.id,
+          name: list.name,
+          path: '/${list.name}',
+          isTask: false,
+        ));
+      }
+    }
+
+    // Поиск задач
+    final listIds = lists.map((list) => list.id).toList();
+    if (listIds.isEmpty) return results;
+
+    final snapshots = await _getTasksInBatches(listIds);
+    for (var snapshot in snapshots) {
+      for (var doc in snapshot.docs) {
+        final taskData = doc.data() as Map<String, dynamic>?;
+        // Проверяем, что taskData не null и содержит необходимые поля
+        if (taskData == null) continue;
+        final taskTitle = taskData['title'] as String?;
+        final listId = taskData['listId'] as String?;
+        // Пропускаем, если title или listId отсутствуют
+        if (taskTitle == null || listId == null) continue;
+        if (taskTitle.toLowerCase().contains(lowercaseQuery)) {
+          final list = lists.firstWhere((l) => l.id == listId);
+          results.add(SearchResult(
+            id: doc.id,
+            listId: listId,
+            name: taskTitle,
+            path: '/${list.name}/$taskTitle',
+            isTask: true,
+          ));
+        }
+      }
+    }
+
+    return results;
+  }
+
+  Future<List<QuerySnapshot>> _getTasksInBatches(List<String> listIds) async {
+    const batchSize = 10;
+    final batches = <List<String>>[];
+    for (var i = 0; i < listIds.length; i += batchSize) {
+      batches.add(listIds.sublist(i, i + batchSize > listIds.length ? listIds.length : i + batchSize));
+    }
+
+    final firestore = FirebaseFirestore.instance;
+    final snapshots = <QuerySnapshot>[];
+    for (var batch in batches) {
+      final snapshot = await firestore
+          .collection('tasks')
+          .where('listId', whereIn: batch)
+          .get();
+      snapshots.add(snapshot);
+    }
+    return snapshots;
+  }
+
+  void _search(String query) {
+    _searchSubject.add(query.trim());
   }
 
   void _showAddTaskBottomSheet(BuildContext scaffoldContext, String listId) {
@@ -164,12 +301,14 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                           return;
                         }
-                        print('Adding task: ${_titleController.text}, listId: $listId');
+                        print(
+                            'Adding task: ${_titleController.text}, listId: $listId');
                         scaffoldContext.read<TaskBloc>().add(AddTask(
                           title: _titleController.text,
-                          description: _descriptionController.text.isEmpty
-                              ? null
-                              : _descriptionController.text,
+                          description:
+                          _descriptionController.text.isNotEmpty
+                              ? _descriptionController.text
+                              : null,
                           deadline: _selectedDate != null
                               ? Timestamp.fromDate(_selectedDate!)
                               : null,
@@ -278,6 +417,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   setState(() {
                     _isSearchVisible = !_isSearchVisible;
                     _searchController.clear();
+                    _searchResults = [];
+                    _isSearching = false;
                   });
                 },
               ),
@@ -368,95 +509,107 @@ class _HomeScreenState extends State<HomeScreen> {
                     return BlocBuilder<TaskBloc, TaskState>(
                       builder: (context, taskState) {
                         print('HomeScreen: TaskBloc state: $taskState');
-                        if (_isSearchVisible &&
-                            _searchController.text.isNotEmpty) {
-                          context
-                              .read<ListBloc>()
-                              .add(SearchListsAndTasks(_searchController.text));
-                          return BlocBuilder<ListBloc, ListState>(
-                            builder: (context, searchState) {
-                              if (searchState is ListSearchResults) {
-                                return ListView.builder(
-                                  itemCount: searchState.results.length,
-                                  itemBuilder: (context, index) {
-                                    final result = searchState.results[index];
-                                    if (result is TaskList) {
-                                      return ListTile(
-                                        title: Text(result.name),
-                                        subtitle: Text('${result.name}/'),
-                                        onTap: () {
-                                          print('HomeScreen: Selected search list: ${result.id}');
-                                          context
-                                              .read<ListBloc>()
-                                              .add(UpdateListLastUsed(result.id));
-                                          context
-                                              .read<ListBloc>()
-                                              .add(SelectList(result.id));
-                                          if (result.name.toLowerCase() != 'основной') {
-                                            context
-                                                .read<TaskBloc>()
-                                                .add(LoadTasks(result.id));
-                                          } else {
+                        if (_isSearchVisible) {
+                          return Container(
+                            color: Colors.black54,
+                            child: Column(
+                              children: [
+                                Padding(
+                                  padding:
+                                  const EdgeInsets.all(AppTheme.defaultPadding),
+                                  child: TextField(
+                                    controller: _searchController,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Поиск задач и списков',
+                                      filled: true,
+                                      fillColor: Colors.white,
+                                      border: OutlineInputBorder(),
+                                    ),
+                                    onChanged: _search,
+                                  ),
+                                ),
+                                Expanded(
+                                  child: _isSearching
+                                      ? const Center(child: CircularProgressIndicator())
+                                      : _searchResults.isNotEmpty
+                                      ? ListView.builder(
+                                    itemCount: _searchResults.length,
+                                    itemBuilder: (context, index) {
+                                      final result = _searchResults[index];
+                                      return Card(
+                                        child: ListTile(
+                                          title: Text(result.name),
+                                          subtitle: Column(
+                                            crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                            children: [
+                                              Text(result.path),
+                                              Text(result.isTask
+                                                  ? 'Задача'
+                                                  : 'Список'),
+                                            ],
+                                          ),
+                                          onTap: () {
+                                            print(
+                                                'HomeScreen: Selected search result: ${result.id}, isTask: ${result.isTask}');
                                             context
                                                 .read<ListBloc>()
-                                                .add(LoadTasksForList(result.id));
-                                          }
-                                          setState(() {
-                                            _isSearchVisible = false;
-                                            _searchController.clear();
-                                          });
-                                        },
-                                      );
-                                    } else if (result is Task) {
-                                      final list = searchState.lists.firstWhere(
-                                            (l) => l.id == result.listId,
-                                        orElse: () => TaskList(
-                                          id: '',
-                                          name: 'Неизвестный список',
-                                          ownerId: '',
-                                          createdAt: DateTime.now(),
-                                          members: {},
-                                          sharedLists: [],
+                                                .add(UpdateListLastUsed(
+                                                result.listId));
+                                            context
+                                                .read<ListBloc>()
+                                                .add(SelectList(result.listId));
+                                            final selectedList =
+                                            (listState as ListLoaded)
+                                                .lists
+                                                .firstWhere(
+                                                  (l) =>
+                                              l.id ==
+                                                  result.listId,
+                                              orElse: () => TaskList(
+                                                id: '',
+                                                name:
+                                                'Неизвестный список',
+                                                ownerId: '',
+                                                createdAt:
+                                                DateTime.now(),
+                                                members: {},
+                                                sharedLists: [],
+                                              ),
+                                            );
+                                            if (selectedList.name
+                                                .toLowerCase() !=
+                                                'основной') {
+                                              context
+                                                  .read<TaskBloc>()
+                                                  .add(LoadTasks(
+                                                  result.listId));
+                                            } else {
+                                              context
+                                                  .read<ListBloc>()
+                                                  .add(LoadTasksForList(
+                                                  result.listId));
+                                            }
+                                            setState(() {
+                                              _isSearchVisible = false;
+                                              _searchController.clear();
+                                              _searchResults = [];
+                                            });
+                                          },
                                         ),
                                       );
-                                      return ListTile(
-                                        title: Text(result.title),
-                                        subtitle:
-                                        Text('${list.name}/${result.title}'),
-                                        onTap: () {
-                                          print('HomeScreen: Selected search task from list: ${result.listId}');
-                                          context
-                                              .read<ListBloc>()
-                                              .add(UpdateListLastUsed(result.listId));
-                                          context
-                                              .read<ListBloc>()
-                                              .add(SelectList(result.listId));
-                                          if (list.name.toLowerCase() != 'основной') {
-                                            context
-                                                .read<TaskBloc>()
-                                                .add(LoadTasks(result.listId));
-                                          } else {
-                                            context
-                                                .read<ListBloc>()
-                                                .add(LoadTasksForList(result.listId));
-                                          }
-                                          setState(() {
-                                            _isSearchVisible = false;
-                                            _searchController.clear();
-                                          });
-                                        },
-                                      );
-                                    }
-                                    return const SizedBox();
-                                  },
-                                );
-                              }
-                              return const SizedBox();
-                            },
+                                    },
+                                  )
+                                      : _searchController.text.isNotEmpty
+                                      ? const Center(
+                                      child: Text('Ничего не найдено'))
+                                      : const SizedBox(),
+                                ),
+                              ],
+                            ),
                           );
                         }
-                        if (taskState is TaskLoading ||
-                            listState is ListLoading) {
+                        if (taskState is TaskLoading || listState is ListLoading) {
                           return const Center(child: CircularProgressIndicator());
                         }
                         if (listState is ListError) {
@@ -475,8 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ],
                               ));
                         }
-                        if (listState is ListLoaded &&
-                            listState.lists.isNotEmpty) {
+                        if (listState is ListLoaded && listState.lists.isNotEmpty) {
                           final selectedList = listState.lists.firstWhere(
                                 (l) => l.id == listState.selectedListId,
                             orElse: () => listState.lists.first,
@@ -491,10 +643,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               final taskBloc = context.read<TaskBloc>();
                               final listBloc = context.read<ListBloc>();
                               if (listState.selectedListId != null) {
-                                print('HomeScreen: Refreshing tasks for list: ${listState.selectedListId}');
+                                print(
+                                    'HomeScreen: Refreshing tasks for list: ${listState.selectedListId}');
                                 if (isMainList) {
-                                  listBloc
-                                      .add(LoadTasksForList(listState.selectedListId!));
+                                  listBloc.add(
+                                      LoadTasksForList(listState.selectedListId!));
                                 } else {
                                   taskBloc
                                       .add(LoadTasks(listState.selectedListId!));
@@ -529,7 +682,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                       children: [
                                         SlidableAction(
                                           onPressed: (_) {
-                                            print('HomeScreen: Toggling favorite for task: ${task.id}');
+                                            print(
+                                                'HomeScreen: Toggling favorite for task: ${task.id}');
                                             context.read<TaskBloc>().add(
                                                 UpdateTask(task.copyWith(
                                                     isFavorite:
@@ -544,17 +698,19 @@ class _HomeScreenState extends State<HomeScreen> {
                                           onPressed: (_) async {
                                             final date = await showDatePicker(
                                               context: context,
-                                              initialDate: task.deadline?.toDate() ??
+                                              initialDate:
+                                              task.deadline?.toDate() ??
                                                   DateTime.now(),
                                               firstDate: DateTime.now(),
                                               lastDate: DateTime(2030),
                                             );
                                             if (date != null) {
-                                              print('HomeScreen: Updating deadline for task: ${task.id}');
+                                              print(
+                                                  'HomeScreen: Updating deadline for task: ${task.id}');
                                               context.read<TaskBloc>().add(
                                                   UpdateTask(task.copyWith(
-                                                      deadline:
-                                                      Timestamp.fromDate(date))));
+                                                      deadline: Timestamp
+                                                          .fromDate(date))));
                                             }
                                           },
                                           backgroundColor: Colors.blue,
@@ -564,9 +720,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                         SlidableAction(
                                           onPressed: (_) {
-                                            print('HomeScreen: Deleting task: ${task.id}');
+                                            print(
+                                                'HomeScreen: Deleting task: ${task.id}');
                                             context.read<TaskBloc>().add(
-                                                DeleteTask(task.id, task.listId));
+                                                DeleteTask(
+                                                    task.id, task.listId));
                                           },
                                           backgroundColor: Colors.red,
                                           foregroundColor: Colors.white,
@@ -581,7 +739,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                           ? Colors.grey[300]
                                           : Colors.white,
                                       child: ListTile(
-                                        contentPadding: const EdgeInsets.symmetric(
+                                        contentPadding:
+                                        const EdgeInsets.symmetric(
                                             horizontal: 16, vertical: 8),
                                         leading: Row(
                                           mainAxisSize: MainAxisSize.min,
@@ -589,7 +748,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                             Checkbox(
                                               value: task.isCompleted,
                                               onChanged: (value) {
-                                                print('HomeScreen: Updating completion for task: ${task.id}');
+                                                print(
+                                                    'HomeScreen: Updating completion for task: ${task.id}');
                                                 context.read<TaskBloc>().add(
                                                     UpdateTask(task.copyWith(
                                                         isCompleted:
@@ -620,9 +780,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Text('Список: ${taskList.name}'),
                                             Text(task.ownerId == userId
                                                 ? 'Вы'
-                                                : task.ownerUsername ?? 'Неизвестный'), // Изменено на ownerUsername
+                                                : task.ownerUsername ??
+                                                'Неизвестный'),
                                             if (task.priority != null)
-                                              Text('Приоритет: ${task.priority}'),
+                                              Text(
+                                                  'Приоритет: ${task.priority}'),
                                             if (task.deadline != null)
                                               Text(
                                                 'Дедлайн: ${DateFormat('dd.MM.yyyy').format(task.deadline!.toDate())}',
@@ -632,7 +794,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                         trailing: Text(
                                           task.deadline != null
                                               ? DateFormat('dd.MM')
-                                              .format(task.deadline!.toDate())
+                                              .format(task.deadline!
+                                              .toDate())
                                               : '',
                                         ),
                                       ),
@@ -658,13 +821,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                               (l) => l.id == listState.selectedListId!,
                                           orElse: () => listState.lists.first,
                                         );
-                                        if (selectedList.name.toLowerCase() == 'основной') {
+                                        if (selectedList.name.toLowerCase() ==
+                                            'основной') {
                                           context.read<ListBloc>().add(
-                                              LoadTasksForList(listState.selectedListId!));
+                                              LoadTasksForList(
+                                                  listState.selectedListId!));
                                         } else {
-                                          context
-                                              .read<TaskBloc>()
-                                              .add(LoadTasks(listState.selectedListId!));
+                                          context.read<TaskBloc>().add(
+                                              LoadTasks(listState.selectedListId!));
                                         }
                                       }
                                     },
@@ -679,32 +843,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   },
                 ),
               ),
-              if (_isSearchVisible)
-                Container(
-                  color: Colors.black54,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(AppTheme.defaultPadding),
-                        child: TextField(
-                          controller: _searchController,
-                          decoration: const InputDecoration(
-                            labelText: 'Поиск задач и списков',
-                            filled: true,
-                            fillColor: Colors.white,
-                            border: OutlineInputBorder(),
-                          ),
-                          onChanged: (value) {
-                            print('HomeScreen: Searching for: $value');
-                            context
-                                .read<ListBloc>()
-                                .add(SearchListsAndTasks(value));
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
             ],
           ),
           bottomNavigationBar: Builder(

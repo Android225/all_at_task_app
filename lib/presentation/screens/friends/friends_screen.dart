@@ -23,7 +23,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
   @override
   void initState() {
     super.initState();
-    // Отправляем событие LoadInvitations при открытии экрана
     GetIt.instance<InvitationBloc>().add(LoadInvitations());
     _searchSubject
         .debounceTime(const Duration(milliseconds: 500))
@@ -39,7 +38,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
               .where('username', isGreaterThanOrEqualTo: query)
               .limit(10)
               .get();
-          // Фильтруем на клиенте по совпадению
           final filteredDocs = snapshot.docs.where((doc) {
             final username = (doc.data() as Map<String, dynamic>)['username'] as String;
             return username.toLowerCase().contains(query.toLowerCase());
@@ -124,7 +122,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
         padding: const EdgeInsets.all(AppTheme.defaultPadding),
         child: Column(
           children: [
-            // Поиск: 2/6 экрана
             Expanded(
               flex: 2,
               child: Column(
@@ -182,7 +179,6 @@ class _FriendsScreenState extends State<FriendsScreen> {
                 ],
               ),
             ),
-            // Список друзей: 4/6 экрана
             Expanded(
               flex: 4,
               child: BlocBuilder<InvitationBloc, InvitationState>(
@@ -191,9 +187,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
                   if (state is InvitationLoading) {
                     return const Center(child: CircularProgressIndicator());
                   } else if (state is InvitationLoaded) {
-                    final friends = state.friendRequests
-                        .where((req) => req.status == 'accepted')
-                        .toList();
+                    final friends = state.acceptedFriends; // Уже отфильтрованы
                     if (friends.isEmpty) {
                       return const Center(child: Text('Нет друзей'));
                     }

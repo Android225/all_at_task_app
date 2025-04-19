@@ -1,40 +1,47 @@
 part of 'invitation_bloc.dart';
 
-@immutable
-sealed class InvitationState extends Equatable {
+abstract class InvitationState extends Equatable {
+  const InvitationState();
+
   @override
-  List<Object?> get props => [];
+  List<Object> get props => [];
 }
 
-final class InvitationInitial extends InvitationState {}
+class InvitationInitial extends InvitationState {}
 
-final class InvitationLoading extends InvitationState {}
+class InvitationLoading extends InvitationState {}
 
-final class InvitationLoaded extends InvitationState {
+class InvitationLoaded extends InvitationState {
   final List<Invitation> invitations;
-  final List<FriendRequest> friendRequests;
-  final Map<String, Map<String, dynamic>> listDetails; // Добавляем данные списков
+  final List<FriendRequest> pendingFriendRequests; // Запросы в друзья (pending)
+  final List<FriendRequest> acceptedFriends; // Друзья (accepted)
+  final Map<String, Map<String, dynamic>> listDetails;
 
-  InvitationLoaded(this.invitations, this.friendRequests, [this.listDetails = const {}]);
+  const InvitationLoaded({
+    required this.invitations,
+    required this.pendingFriendRequests,
+    required this.acceptedFriends,
+    required this.listDetails,
+  });
 
   @override
-  List<Object?> get props => [invitations, friendRequests, listDetails];
+  List<Object> get props => [invitations, pendingFriendRequests, acceptedFriends, listDetails];
 }
 
-final class InvitationError extends InvitationState {
+class InvitationSuccess extends InvitationState {
   final String message;
 
-  InvitationError(this.message);
+  const InvitationSuccess(this.message);
 
   @override
-  List<Object?> get props => [message];
+  List<Object> get props => [message];
 }
 
-final class InvitationSuccess extends InvitationState {
+class InvitationError extends InvitationState {
   final String message;
 
-  InvitationSuccess(this.message);
+  const InvitationError(this.message);
 
   @override
-  List<Object?> get props => [message];
+  List<Object> get props => [message];
 }

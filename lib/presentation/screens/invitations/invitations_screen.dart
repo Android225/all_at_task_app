@@ -53,9 +53,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
               if (state is InvitationLoading) {
                 return const Center(child: CircularProgressIndicator());
               } else if (state is InvitationLoaded) {
-                final friendRequests = state.friendRequests
-                    .where((req) => req.status == 'pending')
-                    .toList();
+                final friendRequests = state.pendingFriendRequests; // Уже отфильтрованы
                 final invitations = state.invitations;
                 final listDetails = state.listDetails;
 
@@ -93,7 +91,8 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                               }
                               final userData = snapshot.data!.data()
                               as Map<String, dynamic>;
-                              final username = userData['username'] as String;
+                              final username =
+                              userData['username'] as String;
                               final name = userData['name'] as String;
                               return ListTile(
                                 title: Text(username),
@@ -105,7 +104,8 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                                       icon: const Icon(Icons.check,
                                           color: Colors.green),
                                       onPressed: () {
-                                        GetIt.instance<InvitationBloc>().add(
+                                        GetIt.instance<InvitationBloc>()
+                                            .add(
                                           AcceptFriendRequest(request.id),
                                         );
                                       },
@@ -114,7 +114,8 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                                       icon: const Icon(Icons.close,
                                           color: Colors.red),
                                       onPressed: () {
-                                        GetIt.instance<InvitationBloc>().add(
+                                        GetIt.instance<InvitationBloc>()
+                                            .add(
                                           RejectFriendRequest(request.id),
                                         );
                                       },
@@ -158,11 +159,13 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                               }
                               final userData = userSnapshot.data!.data()
                               as Map<String, dynamic>;
-                              final username = userData['username'] as String;
+                              final username =
+                              userData['username'] as String;
                               final name = userData['name'] as String;
 
-                              // Используем данные списка из listDetails
-                              final listName = listDetails[listId]?['name'] as String? ?? 'Неизвестный список';
+                              final listName = listDetails[listId]?['name']
+                              as String? ??
+                                  'Неизвестный список';
 
                               return ListTile(
                                 title: Text('$username приглашает в список'),
@@ -174,7 +177,8 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                                       icon: const Icon(Icons.check,
                                           color: Colors.green),
                                       onPressed: () {
-                                        GetIt.instance<InvitationBloc>().add(
+                                        GetIt.instance<InvitationBloc>()
+                                            .add(
                                           AcceptInvitation(invitation.id),
                                         );
                                       },
@@ -183,7 +187,8 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                                       icon: const Icon(Icons.close,
                                           color: Colors.red),
                                       onPressed: () {
-                                        GetIt.instance<InvitationBloc>().add(
+                                        GetIt.instance<InvitationBloc>()
+                                            .add(
                                           RejectInvitation(invitation.id),
                                         );
                                       },
