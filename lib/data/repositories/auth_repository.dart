@@ -15,7 +15,7 @@ class AuthRepository {
     required String username,
   }) async {
     try {
-      print('Starting signUp with email: $email, username: $username, name: $name');
+      print('Начинаем регистрацию с email: $email, username: $username, name: $name');
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: email,
         password: password,
@@ -23,7 +23,7 @@ class AuthRepository {
       final user = userCredential.user;
 
       if (user != null) {
-        print('User created with uid: ${user.uid}');
+        print('Пользователь создан с uid: ${user.uid}');
         await user.updateDisplayName(name);
 
         final userModel = UserModel(
@@ -32,31 +32,31 @@ class AuthRepository {
           email: email,
         );
 
-        print('Saving user to Firestore: users/${user.uid}');
+        print('Сохраняем пользователя в Firestore: users/${user.uid}');
         await _firestore
             .collection('users')
             .doc(user.uid)
             .set(userModel.toMap());
-        print('User saved successfully');
+        print('Пользователь успешно сохранен');
 
-        print('Creating public profile for uid: ${user.uid}');
+        print('Создаем публичный профиль для uid: ${user.uid}');
         try {
           await updatePublicProfile(user.uid, username, name);
-          print('Public profile created successfully');
+          print('Публичный профиль успешно создан');
         } catch (e) {
-          print('Failed to create public profile: $e');
-          throw Exception('Failed to create public profile: $e');
+          print('Ошибка при создании публичного профиля: $e');
+          throw Exception('Не удалось создать публичный профиль: $e');
         }
 
         const uuid = Uuid();
         final listId = uuid.v4();
-        print('Creating default list: lists/$listId');
+        print('Создаем список по умолчанию: lists/$listId');
         final mainList = {
           'id': listId,
           'name': 'Основной',
           'ownerId': user.uid,
           'createdAt': Timestamp.fromDate(DateTime.now()),
-          'members': {user.uid: 'owner'},
+          'members': {user.uid: 'admin'}, // Изменено с 'owner' на 'admin'
           'sharedLists': [],
         };
         await _firestore.collection('lists').doc(listId).set(mainList);
@@ -70,65 +70,65 @@ class AuthRepository {
           'listId': listId,
           'addedAt': Timestamp.now(),
         });
-        print('Default list created successfully');
+        print('Список по умолчанию успешно создан');
       } else {
-        print('User creation failed: user is null');
-        throw Exception('User creation failed: user is null');
+        print('Ошибка создания пользователя: пользователь null');
+        throw Exception('Ошибка создания пользователя: пользователь null');
       }
     } catch (e) {
-      print('SignUp error: $e');
-      throw Exception('Failed to sign up: $e');
+      print('Ошибка регистрации: $e');
+      throw Exception('Не удалось зарегистрировать: $e');
     }
   }
 
   Future<void> updatePublicProfile(String userId, String username, String name) async {
     try {
-      print('Attempting to create public profile for userId: $userId, username: $username, name: $name');
+      print('Пытаемся создать публичный профиль для userId: $userId, username: $username, name: $name');
       await _firestore.collection('public_profiles').doc(userId).set({
         'username': username,
         'name': name,
         'createdAt': Timestamp.now(),
       }, SetOptions(merge: true));
-      print('Public profile created successfully in Firestore');
+      print('Публичный профиль успешно создан в Firestore');
     } catch (e) {
-      print('Failed to update public profile: $e');
-      throw Exception('Failed to update public profile: $e');
+      print('Ошибка обновления публичного профиля: $e');
+      throw Exception('Не удалось обновить публичный профиль: $e');
     }
   }
 
   Future<void> login({required String email, required String password}) async {
     try {
-      print('Starting login with email: $email');
+      print('Начинаем вход с email: $email');
       await _auth.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      print('Login successful');
+      print('Вход выполнен успешно');
     } catch (e) {
-      print('Login error: $e');
-      throw Exception('Failed to login: $e');
+      print('Ошибка входа: $e');
+      throw Exception('Не удалось войти: $e');
     }
   }
 
   Future<void> resetPassword({required String email}) async {
     try {
-      print('Sending password reset email to: $email');
+      print('Отправляем письмо для сброса пароля на: $email');
       await _auth.sendPasswordResetEmail(email: email);
-      print('Password reset email sent');
+      print('Письмо для сброса пароля отправлено');
     } catch (e) {
-      print('Reset password error: $e');
-      throw Exception('Failed to send reset email: $e');
+      print('Ошибка сброса пароля: $e');
+      throw Exception('Не удалось отправить письмо для сброса: $e');
     }
   }
 
   Future<void> signOut() async {
     try {
-      print('Signing out');
+      print('Выходим из системы');
       await _auth.signOut();
-      print('Sign out successful');
+      print('Выход выполнен успешно');
     } catch (e) {
-      print('Sign out error: $e');
-      throw Exception('Failed to sign out: $e');
+      print('Ошибка выхода: $e');
+      throw Exception('Не удалось выйти: $e');
     }
   }
 
