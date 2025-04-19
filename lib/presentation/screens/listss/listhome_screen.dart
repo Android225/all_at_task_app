@@ -55,7 +55,6 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
 
     selectedColor = availableColors[0]; // Цвет по умолчанию
 
-    // Загрузка списка друзей
     Future<List<Map<String, dynamic>>> loadFriends() async {
       if (_cachedFriends != null) {
         return _cachedFriends!;
@@ -110,7 +109,6 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
       }
     }
 
-    // Поиск пользователей
     Future<List<Map<String, dynamic>>> searchUsers(String query) async {
       try {
         if (query.isEmpty) {
@@ -153,7 +151,6 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (dialogContext, setState) {
-            // Загружаем друзей только один раз
             if (friends.isEmpty && !isSearching) {
               loadFriends().then((loadedFriends) {
                 if (!dialogContext.mounted) return;
@@ -468,7 +465,14 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
         backgroundColor: AppTheme.primaryColor,
         title: const Text('Мои списки'),
       ),
-      body: BlocBuilder<ListBloc, ListState>(
+      body: BlocConsumer<ListBloc, ListState>(
+        listener: (context, state) {
+          if (state is ListError) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(state.message)),
+            );
+          }
+        },
         builder: (context, state) {
           print('ListHomeScreen: Current state: $state');
           if (state is ListLoading) {
@@ -478,50 +482,181 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             if (state.lists.isEmpty) {
               return const Center(child: Text('Нет списков'));
             }
-            return ListView.builder(
-              itemCount: state.lists.length,
-              itemBuilder: (context, index) {
-                final list = state.lists[index];
-                return ListTile(
-                  title: Text(
-                    list.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () {
-                          print('ListHomeScreen: Editing list: ${list.id}');
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BlocProvider.value(
-                                value: context.read<ListBloc>(),
-                                child: ListEditScreen(list: list),
+
+            // Разделим списки на "Мои списки" (где я owner) и "Чужие списки" (где я участник)
+            final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+            final myLists = state.lists
+                .where((list) => list.ownerId == userId)
+                .toList();
+            final sharedLists = state.lists
+                .where((list) => list.ownerId != userId && list.members.containsKey(userId))
+                .toList();
+
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (myLists.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.all(AppTheme.defaultPadding),
+                      child: Text(
+                        'Мои списки',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: myLists.length,
+                      itemBuilder: (context, index) {
+                        final list = myLists[index];
+                        return Card(
+                          elevation: 2,
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: ListTile(
+                            leading: list.color != null
+                                ? Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(list.color!),
                               ),
+                            )
+                                : const Icon(Icons.list),
+                            title: Text(
+                              list.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
                             ),
-                          );
-                        },
+                            subtitle: Text(
+                              list.description ?? 'Без описания',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  onPressed: () {
+                                    print('ListHomeScreen: Editing list: ${list.id}');
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => BlocProvider.value(
+                                          value: context.read<ListBloc>(),
+                                          child: ListEditScreen(list: list),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () {
+                                    print('ListHomeScreen: Deleting list: ${list.id}');
+                                    context.read<ListBloc>().add(DeleteList(list.id));
+                                  },
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              print('ListHomeScreen: Selecting list: ${list.id}');
+                              context.read<ListBloc>().add(SelectList(list.id));
+                              Navigator.pushNamed(context, '/home', arguments: list.id);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                  if (sharedLists.isNotEmpty) ...[
+                    Padding(
+                      padding: const EdgeInsets.all(AppTheme.defaultPadding),
+                      child: Text(
+                        'Списки, где я участник',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () {
-                          print('ListHomeScreen: Deleting list: ${list.id}');
-                          context.read<ListBloc>().add(DeleteList(list.id));
-                        },
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    print('ListHomeScreen: Selecting list: ${list.id}');
-                    context.read<ListBloc>().add(SelectList(list.id));
-                    Navigator.pushNamed(context, '/home', arguments: list.id);
-                  },
-                );
-              },
+                    ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: sharedLists.length,
+                      itemBuilder: (context, index) {
+                        final list = sharedLists[index];
+                        return Card(
+                          elevation: 2,
+                          margin: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          child: ListTile(
+                            leading: list.color != null
+                                ? Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(list.color!),
+                              ),
+                            )
+                                : const Icon(Icons.list),
+                            title: Text(
+                              list.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: FutureBuilder<DocumentSnapshot>(
+                              future: FirebaseFirestore.instance
+                                  .collection('public_profiles')
+                                  .doc(list.ownerId)
+                                  .get(),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) {
+                                  return const Text('Загрузка владельца...');
+                                }
+                                final ownerData = snapshot.data!.data() as Map<String, dynamic>;
+                                return Text(
+                                  'Владелец: ${ownerData['username'] ?? 'Неизвестный'}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
+                            ),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  onPressed: () {
+                                    print('ListHomeScreen: Editing shared list: ${list.id}');
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => BlocProvider.value(
+                                          value: context.read<ListBloc>(),
+                                          child: ListEditScreen(list: list),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            onTap: () {
+                              print('ListHomeScreen: Selecting shared list: ${list.id}');
+                              context.read<ListBloc>().add(SelectList(list.id));
+                              Navigator.pushNamed(context, '/home', arguments: list.id);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              ),
             );
           } else if (state is ListError) {
             print('ListHomeScreen: Error: ${state.message}');

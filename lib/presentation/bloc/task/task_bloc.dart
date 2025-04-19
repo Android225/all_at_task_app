@@ -30,9 +30,30 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           .collection('tasks')
           .where('listId', isEqualTo: event.listId)
           .get();
-      final tasks = tasksSnapshot.docs
-          .map((doc) => Task.fromMap(doc.data()..['id'] = doc.id))
-          .toList();
+      final tasks = <Task>[];
+
+      for (var doc in tasksSnapshot.docs) {
+        final data = doc.data()..['id'] = doc.id;
+        var task = Task.fromMap(data);
+
+        // Загружаем username владельца задачи
+        if (task.ownerId.isNotEmpty) {
+          final profileDoc = await FirebaseFirestore.instance
+              .collection('public_profiles')
+              .doc(task.ownerId)
+              .get();
+          if (profileDoc.exists) {
+            final username = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+            task = task.copyWith(ownerUsername: username);
+          } else {
+            task = task.copyWith(ownerUsername: 'Неизвестный');
+          }
+        } else {
+          task = task.copyWith(ownerUsername: 'Неизвестный');
+        }
+
+        tasks.add(task);
+      }
 
       print('TaskBloc: Loaded ${tasks.length} tasks');
       emit(TaskLoaded(tasks: tasks, userId: userId));
@@ -50,11 +71,23 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         emit(TaskError('Пользователь не авторизован'));
         return;
       }
+
+      // Загружаем username владельца
+      String ownerUsername = 'Неизвестный';
+      final profileDoc = await FirebaseFirestore.instance
+          .collection('public_profiles')
+          .doc(event.ownerId)
+          .get();
+      if (profileDoc.exists) {
+        ownerUsername = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+      }
+
       final task = Task(
         title: event.title,
         description: event.description,
         listId: event.listId,
         ownerId: event.ownerId,
+        ownerUsername: ownerUsername, // Сохраняем username
         deadline: event.deadline,
         priority: event.priority,
         assignedTo: event.assignedTo,
@@ -83,14 +116,28 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onUpdateTask(UpdateTask event, Emitter<TaskState> emit) async {
     try {
       print('TaskBloc: Updating task: ${event.task.id}');
+      // При обновлении задачи сохраняем текущий ownerUsername
+      var taskToUpdate = event.task;
+      if (taskToUpdate.ownerUsername == null) {
+        final profileDoc = await FirebaseFirestore.instance
+            .collection('public_profiles')
+            .doc(taskToUpdate.ownerId)
+            .get();
+        if (profileDoc.exists) {
+          final username = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+          taskToUpdate = taskToUpdate.copyWith(ownerUsername: username);
+        } else {
+          taskToUpdate = taskToUpdate.copyWith(ownerUsername: 'Неизвестный');
+        }
+      }
       await FirebaseFirestore.instance
           .collection('tasks')
-          .doc(event.task.id)
-          .update(event.task.toMap());
+          .doc(taskToUpdate.id)
+          .update(taskToUpdate.toMap());
       if (state is TaskLoaded) {
         final currentState = state as TaskLoaded;
         final updatedTasks = currentState.tasks
-            .map((task) => task.id == event.task.id ? event.task : task)
+            .map((task) => task.id == taskToUpdate.id ? taskToUpdate : task)
             .toList();
         emit(TaskLoaded(
           tasks: updatedTasks,

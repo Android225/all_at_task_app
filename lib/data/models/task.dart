@@ -8,6 +8,7 @@ class Task extends Equatable {
   final String? description;
   final String listId;
   final String ownerId;
+  final String? ownerUsername; // Новое поле
   final Timestamp createdAt;
   final Timestamp? deadline;
   final String? priority;
@@ -21,6 +22,7 @@ class Task extends Equatable {
     this.description,
     required this.listId,
     required this.ownerId,
+    this.ownerUsername, // Новое поле
     Timestamp? createdAt,
     this.deadline,
     this.priority,
@@ -37,6 +39,7 @@ class Task extends Equatable {
       description: map['description'],
       listId: map['listId'] ?? '',
       ownerId: map['ownerId'] ?? '',
+      ownerUsername: map['ownerUsername'], // Новое поле
       createdAt: map['createdAt'] ?? Timestamp.now(),
       deadline: map['deadline'],
       priority: map['priority'],
@@ -53,6 +56,7 @@ class Task extends Equatable {
       'description': description,
       'listId': listId,
       'ownerId': ownerId,
+      'ownerUsername': ownerUsername, // Новое поле
       'createdAt': createdAt,
       'deadline': deadline,
       'priority': priority,
@@ -68,6 +72,7 @@ class Task extends Equatable {
     String? description,
     String? listId,
     String? ownerId,
+    String? ownerUsername, // Новое поле
     Timestamp? createdAt,
     Timestamp? deadline,
     String? priority,
@@ -81,6 +86,7 @@ class Task extends Equatable {
       description: description ?? this.description,
       listId: listId ?? this.listId,
       ownerId: ownerId ?? this.ownerId,
+      ownerUsername: ownerUsername ?? this.ownerUsername, // Новое поле
       createdAt: createdAt ?? this.createdAt,
       deadline: deadline ?? this.deadline,
       priority: priority ?? this.priority,
@@ -97,6 +103,7 @@ class Task extends Equatable {
     description,
     listId,
     ownerId,
+    ownerUsername, // Новое поле
     createdAt,
     deadline,
     priority,

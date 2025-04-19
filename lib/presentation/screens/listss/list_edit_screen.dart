@@ -49,12 +49,14 @@ class _ListEditScreenState extends State<ListEditScreen> {
     _nameController = TextEditingController(text: widget.list.name);
     _descriptionController = TextEditingController(text: widget.list.description);
     _searchController = TextEditingController();
-    _selectedColor = widget.list.color ?? availableColors[0];
+    _selectedColor = widget.list.color != null && availableColors.contains(widget.list.color)
+        ? widget.list.color
+        : availableColors[0];
     _loadMainList();
-    // Загружаем текущих участников
     selectedMemberIds = widget.list.members.keys
         .where((key) => key != widget.list.ownerId)
         .toList();
+    loadFriends();
   }
 
   Future<void> _loadMainList() async {
@@ -88,7 +90,6 @@ class _ListEditScreenState extends State<ListEditScreen> {
     }
   }
 
-  // Загрузка списка друзей
   Future<void> loadFriends() async {
     final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
     final acceptedFriendsSnapshot1 = await FirebaseFirestore.instance
@@ -132,7 +133,6 @@ class _ListEditScreenState extends State<ListEditScreen> {
     });
   }
 
-  // Поиск пользователей
   void searchUsers(String query) async {
     if (query.isEmpty) {
       setState(() {
@@ -205,72 +205,78 @@ class _ListEditScreenState extends State<ListEditScreen> {
             Navigator.pop(context);
           }
         },
-        child: Padding(
+        child: _isLoadingMainList
+            ? const Center(child: CircularProgressIndicator())
+            : SingleChildScrollView(
           padding: const EdgeInsets.all(AppTheme.defaultPadding),
-          child: _isLoadingMainList
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextField(
-                  controller: _nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Название списка',
-                    border: OutlineInputBorder(),
-                  ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Название списка',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Описание',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
+                enabled: isOwner,
+                onChanged: (value) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Описание',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<int>(
-                  value: _selectedColor,
-                  decoration: const InputDecoration(
-                    labelText: 'Цвет',
-                    border: OutlineInputBorder(),
+                enabled: isOwner,
+                maxLines: 3,
+                onChanged: (value) => setState(() {}),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<int>(
+                value: _selectedColor,
+                decoration: const InputDecoration(
+                  labelText: 'Цвет',
+                  border: OutlineInputBorder(),
+                ),
+                items: availableColors
+                    .map((color) => DropdownMenuItem(
+                  value: color,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        color: Color(color),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(colorNames[color] ?? 'Custom'),
+                    ],
                   ),
-                  items: availableColors
-                      .map((color) => DropdownMenuItem(
-                    value: color,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          color: Color(color),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(colorNames[color] ?? 'Custom'),
-                      ],
-                    ),
-                  ))
-                      .toList(),
+                ))
+                    .toList(),
+                onChanged: isOwner
+                    ? (value) {
+                  print('ListEditScreen: Selected color: $value');
+                  setState(() {
+                    _selectedColor = value;
+                  });
+                }
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              if (!isMainList) ...[
+                SwitchListTile(
+                  title: const Text('Подключить к Основному списку'),
+                  value: _connectToMain,
                   onChanged: (value) {
                     setState(() {
-                      _selectedColor = value;
+                      _connectToMain = value;
                     });
                   },
                 ),
-                if (isOwner && !isMainList) ...[
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Подключить к Основному списку'),
-                    value: _connectToMain,
-                    activeColor: AppTheme.primaryColor,
-                    onChanged: (value) {
-                      setState(() {
-                        _connectToMain = value ?? false;
-                      });
-                    },
-                  ),
-                ],
+              ],
+              if (isOwner) ...[
                 const SizedBox(height: 16),
                 const Text(
                   'Добавить участников',
@@ -336,8 +342,8 @@ class _ListEditScreenState extends State<ListEditScreen> {
                             setState(() {
                               selectedMemberIds.add(user['uid']);
                               searchResults.removeAt(index);
-                              friends
-                                  .removeWhere((f) => f['uid'] == user['uid']);
+                              friends.removeWhere(
+                                      (f) => f['uid'] == user['uid']);
                               _searchController.clear();
                               searchResults = [];
                               isSearching = false;
@@ -372,13 +378,14 @@ class _ListEditScreenState extends State<ListEditScreen> {
                                 title: Text('Загрузка...'),
                               );
                             }
-                            final userData =
-                            snapshot.data!.data() as Map<String, dynamic>;
+                            final userData = snapshot.data!.data()
+                            as Map<String, dynamic>;
                             return ListTile(
                               title: Text(userData['username'] as String),
                               subtitle: Text(userData['name'] as String),
                               trailing: IconButton(
-                                icon: const Icon(Icons.close, color: Colors.red),
+                                icon: const Icon(Icons.close,
+                                    color: Colors.red),
                                 onPressed: () {
                                   setState(() {
                                     selectedMemberIds.remove(memberId);
@@ -396,69 +403,70 @@ class _ListEditScreenState extends State<ListEditScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 24),
-                BlocBuilder<ListBloc, ListState>(
-                  builder: (context, state) {
-                    return ElevatedButton(
-                      onPressed: state is ListLoading
-                          ? null
-                          : () {
-                        if (_nameController.text.isNotEmpty) {
-                          final updatedMembers =
-                          Map<String, String>.from(widget.list.members);
-                          for (var memberId in selectedMemberIds) {
-                            if (!updatedMembers.containsKey(memberId)) {
-                              updatedMembers[memberId] = 'viewer';
-                            }
-                          }
-                          updatedMembers[userId] = 'admin';
-                          final updatedList = widget.list.copyWith(
-                            name: _nameController.text,
-                            description:
-                            _descriptionController.text.isNotEmpty
-                                ? _descriptionController.text
-                                : null,
-                            color: _selectedColor,
-                            members: updatedMembers,
-                          );
-                          context
-                              .read<ListBloc>()
-                              .add(UpdateList(updatedList));
-                          // Добавляем новых участников
-                          final newMembers = selectedMemberIds
-                              .where((id) =>
-                          !widget.list.members.containsKey(id))
-                              .toList();
-                          if (newMembers.isNotEmpty) {
-                            context.read<ListBloc>().add(
-                                AddMembersToList(
-                                    updatedList.id, newMembers));
-                          }
-                          if (isOwner && !isMainList && _mainListId != null) {
-                            context.read<ListBloc>().add(
-                              ConnectListToMain(
-                                widget.list.id,
-                                _connectToMain,
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: state is ListLoading
-                          ? const CircularProgressIndicator(
-                        color: Colors.white,
-                      )
-                          : const Text('Сохранить'),
-                    );
-                  },
-                ),
               ],
-            ),
+              const SizedBox(height: 24),
+              BlocBuilder<ListBloc, ListState>(
+                builder: (context, state) {
+                  return ElevatedButton(
+                    onPressed: state is ListLoading ||
+                        (_nameController.text.isEmpty && isOwner)
+                        ? null
+                        : () {
+                      final updatedMembers = Map<String, String>.from(
+                          widget.list.members);
+                      for (var memberId in selectedMemberIds) {
+                        if (!updatedMembers.containsKey(memberId)) {
+                          updatedMembers[memberId] = 'viewer';
+                        }
+                      }
+                      updatedMembers[userId] = 'admin';
+                      final updatedList = widget.list.copyWith(
+                        name: _nameController.text,
+                        description:
+                        _descriptionController.text.isNotEmpty
+                            ? _descriptionController.text
+                            : null,
+                        color: _selectedColor,
+                        members: updatedMembers,
+                      );
+                      context
+                          .read<ListBloc>()
+                          .add(UpdateList(updatedList));
+                      final newMembers = selectedMemberIds
+                          .where((id) => !widget.list.members
+                          .containsKey(id))
+                          .toList();
+                      if (newMembers.isNotEmpty) {
+                        context.read<ListBloc>().add(
+                            AddMembersToList(
+                                updatedList.id, newMembers));
+                      }
+                      if (!isMainList && _mainListId != null) {
+                        context.read<ListBloc>().add(
+                            ConnectListToMain(
+                                widget.list.id, _connectToMain));
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: state is ListLoading
+                        ? const CircularProgressIndicator(
+                      color: Colors.white,
+                    )
+                        : const Text(
+                      'Сохранить',
+                      style: TextStyle(fontSize: 16),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ),
       ),

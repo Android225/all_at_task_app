@@ -616,7 +616,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               Text('Список: ${taskList.name}'),
                                             Text(task.ownerId == userId
                                                 ? 'Вы'
-                                                : 'Другой'),
+                                                : task.ownerUsername ?? 'Неизвестный'), // Изменено на ownerUsername
                                             if (task.priority != null)
                                               Text('Приоритет: ${task.priority}'),
                                             if (task.deadline != null)

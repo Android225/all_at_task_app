@@ -6,6 +6,7 @@ import 'package:all_at_task/data/models/task_list.dart';
 import 'package:all_at_task/data/models/task.dart';
 import 'package:get_it/get_it.dart';
 import 'package:all_at_task/presentation/bloc/invitation/invitation_bloc.dart';
+import 'package:uuid/uuid.dart';
 
 part 'list_event.dart';
 part 'list_state.dart';
@@ -398,11 +399,32 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .collection('tasks')
           .where('ownerId', isEqualTo: userId)
           .get();
-      final tasks = tasksSnapshot.docs
-          .map((doc) => Task.fromMap(doc.data()..['id'] = doc.id))
-          .where((task) =>
-          task.title.toLowerCase().contains(event.query.toLowerCase()))
-          .toList();
+      final tasks = <Task>[];
+
+      for (var doc in tasksSnapshot.docs) {
+        final data = doc.data()..['id'] = doc.id;
+        var task = Task.fromMap(data);
+
+        // Загружаем username владельца задачи
+        if (task.ownerId.isNotEmpty) {
+          final profileDoc = await FirebaseFirestore.instance
+              .collection('public_profiles')
+              .doc(task.ownerId)
+              .get();
+          if (profileDoc.exists) {
+            final username = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+            task = task.copyWith(ownerUsername: username);
+          } else {
+            task = task.copyWith(ownerUsername: 'Неизвестный');
+          }
+        } else {
+          task = task.copyWith(ownerUsername: 'Неизвестный');
+        }
+
+        if (task.title.toLowerCase().contains(event.query.toLowerCase())) {
+          tasks.add(task);
+        }
+      }
 
       final results = [...matchingLists, ...tasks];
       print('ListBloc: Found ${results.length} search results');
@@ -520,9 +542,29 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           .collection('tasks')
           .where('listId', isEqualTo: event.listId)
           .get();
-      final tasks = tasksSnapshot.docs
-          .map((doc) => Task.fromMap(doc.data()..['id'] = doc.id))
-          .toList();
+      final tasks = <Task>[];
+      for (var doc in tasksSnapshot.docs) {
+        final data = doc.data()..['id'] = doc.id;
+        var task = Task.fromMap(data);
+
+        // Загружаем username владельца задачи
+        if (task.ownerId.isNotEmpty) {
+          final profileDoc = await FirebaseFirestore.instance
+              .collection('public_profiles')
+              .doc(task.ownerId)
+              .get();
+          if (profileDoc.exists) {
+            final username = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+            task = task.copyWith(ownerUsername: username);
+          } else {
+            task = task.copyWith(ownerUsername: 'Неизвестный');
+          }
+        } else {
+          task = task.copyWith(ownerUsername: 'Неизвестный');
+        }
+
+        tasks.add(task);
+      }
 
       // Если список "Основной", загружаем задачи из sharedLists
       List<Task> sharedTasks = [];
@@ -535,8 +577,28 @@ class ListBloc extends Bloc<ListEvent, ListState> {
               .collection('tasks')
               .where('listId', whereIn: batchIds)
               .get();
-          sharedTasks.addAll(sharedTasksSnapshot.docs
-              .map((doc) => Task.fromMap(doc.data()..['id'] = doc.id)));
+          for (var doc in sharedTasksSnapshot.docs) {
+            final data = doc.data()..['id'] = doc.id;
+            var task = Task.fromMap(data);
+
+            // Загружаем username владельца задачи
+            if (task.ownerId.isNotEmpty) {
+              final profileDoc = await FirebaseFirestore.instance
+                  .collection('public_profiles')
+                  .doc(task.ownerId)
+                  .get();
+              if (profileDoc.exists) {
+                final username = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+                task = task.copyWith(ownerUsername: username);
+              } else {
+                task = task.copyWith(ownerUsername: 'Неизвестный');
+              }
+            } else {
+              task = task.copyWith(ownerUsername: 'Неизвестный');
+            }
+
+            sharedTasks.add(task);
+          }
         }
       }
 
@@ -567,28 +629,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         return;
       }
 
-      // Находим "Основной" список
-      final mainListSnapshot = await FirebaseFirestore.instance
-          .collection('lists')
-          .where('ownerId', isEqualTo: userId)
-          .where('name', isEqualTo: 'Основной')
-          .get();
-      if (mainListSnapshot.docs.isEmpty) {
-        emit(ListError('Основной список не найден'));
-        return;
-      }
-      final mainList = mainListSnapshot.docs.first;
-      final mainListData = TaskList.fromMap(mainList.data()..['id'] = mainList.id);
-
-      // Проверяем права
-      final members = Map<String, String>.from(mainListData.members);
-      if (mainListData.ownerId != userId &&
-          (!members.containsKey(userId) || members[userId] != 'admin')) {
-        emit(ListError('У вас нет прав для изменения основного списка'));
-        return;
-      }
-
-      // Проверяем, можно ли подключить список
+      // Проверяем, есть ли доступ к подключаемому списку
       final listToConnectSnapshot = await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.listId)
@@ -609,39 +650,97 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         return;
       }
 
-      // Обновляем sharedLists
-      final updatedSharedLists = List<String>.from(mainListData.sharedLists);
-      if (event.connect && !updatedSharedLists.contains(event.listId)) {
-        updatedSharedLists.add(event.listId);
-      } else if (!event.connect && updatedSharedLists.contains(event.listId)) {
-        updatedSharedLists.remove(event.listId);
+      // Находим или создаем "Основной" список пользователя
+      final mainListSnapshot = await FirebaseFirestore.instance
+          .collection('lists')
+          .where('ownerId', isEqualTo: userId)
+          .where('name', isEqualTo: 'Основной')
+          .get();
+
+      String mainListId;
+      TaskList mainList;
+
+      if (mainListSnapshot.docs.isEmpty) {
+        // Создаем "Основной" список, если его нет
+        mainListId = const Uuid().v4();
+        mainList = TaskList(
+          id: mainListId,
+          name: 'Основной',
+          ownerId: userId,
+          description: 'Основной список пользователя',
+          color: 0xFF0000FF, // Синий цвет по умолчанию
+          createdAt: DateTime.now(),
+          lastUsed: null,
+          members: {userId: 'admin'},
+          sharedLists: event.connect ? [event.listId] : [],
+        );
+        await FirebaseFirestore.instance
+            .collection('lists')
+            .doc(mainListId)
+            .set(mainList.toMap());
+
+        // Добавляем список в коллекцию пользователя
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .collection('lists')
+            .doc(mainListId)
+            .set({
+          'listId': mainListId,
+          'addedAt': FieldValue.serverTimestamp(),
+        });
       } else {
-        return; // Ничего не изменилось
+        // Обновляем существующий "Основной" список
+        mainListId = mainListSnapshot.docs.first.id;
+        final mainListData = mainListSnapshot.docs.first.data();
+        mainList = TaskList.fromMap(mainListData..['id'] = mainListId);
+
+        final updatedSharedLists = List<String>.from(mainList.sharedLists);
+        if (event.connect && !updatedSharedLists.contains(event.listId)) {
+          updatedSharedLists.add(event.listId);
+        } else if (!event.connect && updatedSharedLists.contains(event.listId)) {
+          updatedSharedLists.remove(event.listId);
+        } else {
+          return; // Ничего не изменилось
+        }
+
+        await FirebaseFirestore.instance
+            .collection('lists')
+            .doc(mainListId)
+            .update({'sharedLists': updatedSharedLists});
+        mainList = mainList.copyWith(sharedLists: updatedSharedLists);
       }
 
-      await FirebaseFirestore.instance
-          .collection('lists')
-          .doc(mainList.id)
-          .update({'sharedLists': updatedSharedLists});
-
+      // Обновляем состояние
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
-        final updatedLists = currentState.lists.map((list) {
-          if (list.id == mainList.id) {
-            return list.copyWith(sharedLists: updatedSharedLists);
-          }
-          return list;
-        }).toList();
+        final updatedLists = List<TaskList>.from(currentState.lists);
+        final mainListIndex =
+        updatedLists.indexWhere((list) => list.id == mainListId);
+        if (mainListIndex != -1) {
+          updatedLists[mainListIndex] = mainList;
+        } else {
+          updatedLists.add(mainList);
+        }
+
         emit(ListLoaded(
           lists: updatedLists,
           userId: currentState.userId,
           selectedListId: currentState.selectedListId,
           tasks: currentState.tasks,
         ));
+
         // Перезагружаем задачи, если выбран "Основной" список
-        if (currentState.selectedListId == mainList.id) {
-          add(LoadTasksForList(mainList.id));
+        if (currentState.selectedListId == mainListId) {
+          add(LoadTasksForList(mainListId));
         }
+      } else {
+        emit(ListLoaded(
+          lists: [mainList],
+          userId: userId,
+          selectedListId: '',
+          tasks: [],
+        ));
       }
     } catch (e) {
       print('ListBloc: Error connecting list to main: $e');
@@ -717,6 +816,5 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       print('ListBloc: Error adding members to list: $e');
       emit(ListError('Не удалось добавить участников: $e'));
     }
-
   }
 }
