@@ -698,46 +698,25 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           emit(ListError('Пользователь $memberId не найден'));
           return;
         }
-      }
 
-      // Обновляем members
-      final updatedMembers = Map<String, String>.from(list.members);
-      for (var memberId in event.memberIds) {
-        if (!updatedMembers.containsKey(memberId)) {
-          updatedMembers[memberId] = 'viewer';
-          print(
-              'ListBloc: Sending invitation to $memberId for list ${event.listId}');
-          GetIt.instance<InvitationBloc>()
-              .add(SendInvitation(event.listId, memberId));
+        // Проверяем, не является ли пользователь уже участником
+        if (members.containsKey(memberId)) {
+          print('ListBloc: User $memberId is already a member of list ${event.listId}');
+          continue; // Пропускаем, если пользователь уже в списке
         }
+
+        // Отправляем приглашение
+        print('ListBloc: Sending invitation to $memberId for list ${event.listId}');
+        GetIt.instance<InvitationBloc>()
+            .add(SendInvitation(event.listId, memberId));
       }
 
-      // Обновляем список в Firestore
-      print('ListBloc: Updating list with new members: $updatedMembers');
-      await FirebaseFirestore.instance
-          .collection('lists')
-          .doc(event.listId)
-          .update({'members': updatedMembers});
-
-      // Обновляем состояние
-      if (state is ListLoaded) {
-        final currentState = state as ListLoaded;
-        final updatedLists = currentState.lists.map((list) {
-          if (list.id == event.listId) {
-            return list.copyWith(members: updatedMembers);
-          }
-          return list;
-        }).toList();
-        emit(ListLoaded(
-          lists: updatedLists,
-          userId: currentState.userId,
-          selectedListId: currentState.selectedListId,
-          tasks: currentState.tasks,
-        ));
-      }
+      // Не обновляем members здесь, это произойдет после принятия приглашения
+      emit(state); // Состояние не меняется, так как мы только отправили приглашение
     } catch (e) {
       print('ListBloc: Error adding members to list: $e');
       emit(ListError('Не удалось добавить участников: $e'));
     }
+
   }
 }

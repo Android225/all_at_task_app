@@ -25,13 +25,10 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onLoadInvitations(
-      LoadInvitations event,
-      Emitter<InvitationState> emit,
-      ) async {
+      LoadInvitations event, Emitter<InvitationState> emit) async {
     print('Handling LoadInvitations for currentUserId: $currentUserId');
     emit(InvitationLoading());
     try {
-      // Загружаем входящие запросы (pending, userId2 = currentUserId)
       print('Fetching pending friend requests where userId2: $currentUserId');
       final pendingRequestsSnapshot = await _firestore
           .collection('friends')
@@ -40,7 +37,6 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
       print('Found ${pendingRequestsSnapshot.docs.length} pending friend requests');
 
-      // Загружаем друзей (accepted, userId1 = currentUserId)
       print('Fetching accepted friends where userId1: $currentUserId');
       final acceptedRequestsSnapshot1 = await _firestore
           .collection('friends')
@@ -49,7 +45,6 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
       print('Found ${acceptedRequestsSnapshot1.docs.length} accepted friends (userId1)');
 
-      // Загружаем друзей (accepted, userId2 = currentUserId)
       print('Fetching accepted friends where userId2: $currentUserId');
       final acceptedRequestsSnapshot2 = await _firestore
           .collection('friends')
@@ -58,14 +53,12 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
       print('Found ${acceptedRequestsSnapshot2.docs.length} accepted friends (userId2)');
 
-      // Объединяем pending и accepted запросы
       final friendRequests = [
         ...pendingRequestsSnapshot.docs,
         ...acceptedRequestsSnapshot1.docs,
         ...acceptedRequestsSnapshot2.docs,
       ].map((doc) => FriendRequest.fromMap(doc.data())).toList();
 
-      // Загружаем приглашения
       print('Fetching invitations where inviteeId: $currentUserId, status: pending');
       final invitationsSnapshot = await _firestore
           .collection('invitations')
@@ -74,12 +67,22 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .get();
       print('Found ${invitationsSnapshot.docs.length} invitations');
 
-      final invitations = invitationsSnapshot.docs
-          .map((doc) => Invitation.fromMap(doc.data()))
-          .toList();
+      final invitations = <Invitation>[];
+      final listDetails = <String, Map<String, dynamic>>{}; // Для хранения данных списков
+      for (var doc in invitationsSnapshot.docs) {
+        final invitation = Invitation.fromMap(doc.data());
+        // Загружаем данные списка
+        final listDoc = await _firestore.collection('lists').doc(invitation.listId).get();
+        if (listDoc.exists) {
+          invitations.add(invitation);
+          listDetails[invitation.listId] = listDoc.data()!; // Сохраняем данные списка
+        } else {
+          print('List ${invitation.listId} not found for invitation ${invitation.id}');
+        }
+      }
 
       print('Emitting InvitationLoaded with ${friendRequests.length} friend requests and ${invitations.length} invitations');
-      emit(InvitationLoaded(invitations, friendRequests));
+      emit(InvitationLoaded(invitations, friendRequests, listDetails));
     } catch (e) {
       print('Error loading invitations: $e');
       emit(InvitationError('Failed to load invitations: $e'));
@@ -87,10 +90,9 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onSendFriendRequest(
-      SendFriendRequest event,
-      Emitter<InvitationState> emit,
-      ) async {
-    print('Handling SendFriendRequest for userId: ${event.userId}, currentUserId: $currentUserId');
+      SendFriendRequest event, Emitter<InvitationState> emit) async {
+    print(
+        'Handling SendFriendRequest for userId: ${event.userId}, currentUserId: $currentUserId');
     try {
       print('Checking if user exists in public_profiles: ${event.userId}');
       final userDoc = await _firestore
@@ -142,18 +144,14 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onAcceptFriendRequest(
-      AcceptFriendRequest event,
-      Emitter<InvitationState> emit,
-      ) async {
+      AcceptFriendRequest event, Emitter<InvitationState> emit) async {
     print('Handling AcceptFriendRequest for requestId: ${event.requestId}');
     try {
-      // Обновляем статус запроса на "accepted"
       await _firestore.collection('friends').doc(event.requestId).update({
         'status': 'accepted',
       });
       print('Friend request status updated to accepted: ${event.requestId}');
 
-      // Обновляем состояние, чтобы запрос сразу отобразился в списке друзей
       final currentState = state;
       if (currentState is InvitationLoaded) {
         final updatedRequests = currentState.friendRequests.map((req) {
@@ -168,7 +166,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           }
           return req;
         }).toList();
-        emit(InvitationLoaded(currentState.invitations, updatedRequests));
+        emit(InvitationLoaded(currentState.invitations, updatedRequests, currentState.listDetails));
       }
       emit(InvitationSuccess('Запрос дружбы принят'));
     } catch (e) {
@@ -178,9 +176,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onRejectFriendRequest(
-      RejectFriendRequest event,
-      Emitter<InvitationState> emit,
-      ) async {
+      RejectFriendRequest event, Emitter<InvitationState> emit) async {
     print('Handling RejectFriendRequest for requestId: ${event.requestId}');
     try {
       await _firestore.collection('friends').doc(event.requestId).delete();
@@ -191,7 +187,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         final updatedRequests = currentState.friendRequests
             .where((req) => req.id != event.requestId)
             .toList();
-        emit(InvitationLoaded(currentState.invitations, updatedRequests));
+        emit(InvitationLoaded(currentState.invitations, updatedRequests, currentState.listDetails));
       }
       emit(InvitationSuccess('Запрос дружбы отклонен'));
     } catch (e) {
@@ -201,15 +197,12 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onSendInvitation(
-      SendInvitation event,
-      Emitter<InvitationState> emit,
-      ) async {
-    print('Handling SendInvitation for listId: ${event.listId}, inviteeId: ${event.inviteeId}');
+      SendInvitation event, Emitter<InvitationState> emit) async {
+    print(
+        'Handling SendInvitation for listId: ${event.listId}, inviteeId: ${event.inviteeId}');
     try {
-      final listDoc = await _firestore
-          .collection('lists')
-          .doc(event.listId)
-          .get();
+      final listDoc =
+      await _firestore.collection('lists').doc(event.listId).get();
       if (!listDoc.exists) {
         emit(InvitationError('Список не найден'));
         return;
@@ -234,12 +227,24 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         createdAt: Timestamp.now(),
       );
 
-      await _firestore
-          .collection('invitations')
-          .doc(invitationId)
-          .set(invitation.toMap());
-      print('Invitation written successfully: $invitationId');
+      await _firestore.runTransaction((transaction) async {
+        final listRef = _firestore.collection('lists').doc(event.listId);
+        final listDoc = await transaction.get(listRef);
+        if (!listDoc.exists) {
+          throw Exception('Список не найден');
+        }
+        final listData = listDoc.data()!;
+        final pendingInvitees = List<String>.from(listData['pendingInvitees'] ?? []);
+        if (!pendingInvitees.contains(event.inviteeId)) {
+          pendingInvitees.add(event.inviteeId);
+        }
+        transaction.update(listRef, {'pendingInvitees': pendingInvitees});
+        transaction.set(
+            _firestore.collection('invitations').doc(invitationId),
+            invitation.toMap());
+      });
 
+      print('Invitation written successfully: $invitationId');
       emit(InvitationSuccess('Приглашение отправлено'));
     } catch (e) {
       print('Error sending invitation: $e');
@@ -248,37 +253,55 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onAcceptInvitation(
-      AcceptInvitation event,
-      Emitter<InvitationState> emit,
-      ) async {
+      AcceptInvitation event, Emitter<InvitationState> emit) async {
     print('Handling AcceptInvitation for invitationId: ${event.invitationId}');
     try {
-      final invitationDoc = await _firestore
-          .collection('invitations')
-          .doc(event.invitationId)
-          .get();
-      if (!invitationDoc.exists) {
-        emit(InvitationError('Приглашение не найдено'));
-        return;
-      }
-      final invitation = Invitation.fromMap(invitationDoc.data()!);
+      await _firestore.runTransaction((transaction) async {
+        final invitationRef =
+        _firestore.collection('invitations').doc(event.invitationId);
+        final invitationDoc = await transaction.get(invitationRef);
+        if (!invitationDoc.exists) {
+          throw Exception('Приглашение не найдено');
+        }
+        final invitation = Invitation.fromMap(invitationDoc.data()!);
+        if (invitation.inviteeId != currentUserId) {
+          throw Exception('У вас нет прав для принятия этого приглашения');
+        }
+        if (invitation.status != 'pending') {
+          throw Exception('Приглашение уже обработано');
+        }
 
-      await _firestore.collection('invitations').doc(event.invitationId).update({
-        'status': 'accepted',
-      });
+        final listRef = _firestore.collection('lists').doc(invitation.listId);
+        final listDoc = await transaction.get(listRef);
+        if (!listDoc.exists) {
+          throw Exception('Список не найден');
+        }
+        final listData = listDoc.data()!;
+        final members = Map<String, String>.from(listData['members'] ?? {});
+        if (members.containsKey(currentUserId)) {
+          throw Exception('Вы уже являетесь участником этого списка');
+        }
+        members[currentUserId] = 'viewer';
 
-      await _firestore.collection('lists').doc(invitation.listId).update({
-        'members.$currentUserId': 'viewer',
-      });
+        final pendingInvitees = List<String>.from(listData['pendingInvitees'] ?? []);
+        pendingInvitees.remove(currentUserId);
 
-      await _firestore
-          .collection('users')
-          .doc(currentUserId)
-          .collection('lists')
-          .doc(invitation.listId)
-          .set({
-        'listId': invitation.listId,
-        'addedAt': Timestamp.now(),
+        transaction.update(listRef, {
+          'members': members,
+          'pendingInvitees': pendingInvitees,
+        });
+
+        final userListRef = _firestore
+            .collection('users')
+            .doc(currentUserId)
+            .collection('lists')
+            .doc(invitation.listId);
+        transaction.set(userListRef, {
+          'listId': invitation.listId,
+          'addedAt': Timestamp.now(),
+        });
+
+        transaction.delete(invitationRef);
       });
 
       final currentState = state;
@@ -286,30 +309,47 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         final updatedInvitations = currentState.invitations
             .where((inv) => inv.id != event.invitationId)
             .toList();
-        emit(InvitationLoaded(updatedInvitations, currentState.friendRequests));
+        emit(InvitationLoaded(updatedInvitations, currentState.friendRequests, currentState.listDetails));
       }
       emit(InvitationSuccess('Приглашение принято'));
     } catch (e) {
       print('Error accepting invitation: $e');
-      emit(InvitationError('Failed to accept invitation: $e'));
+      emit(InvitationError('Не удалось принять приглашение: $e'));
     }
   }
 
   Future<void> _onRejectInvitation(
-      RejectInvitation event,
-      Emitter<InvitationState> emit,
-      ) async {
+      RejectInvitation event, Emitter<InvitationState> emit) async {
     print('Handling RejectInvitation for invitationId: ${event.invitationId}');
     try {
-      await _firestore.collection('invitations').doc(event.invitationId).delete();
-      print('Invitation deleted: ${event.invitationId}');
+      await _firestore.runTransaction((transaction) async {
+        final invitationRef =
+        _firestore.collection('invitations').doc(event.invitationId);
+        final invitationDoc = await transaction.get(invitationRef);
+        if (!invitationDoc.exists) {
+          throw Exception('Приглашение не найдено');
+        }
+        final invitation = Invitation.fromMap(invitationDoc.data()!);
+
+        final listRef = _firestore.collection('lists').doc(invitation.listId);
+        final listDoc = await transaction.get(listRef);
+        if (!listDoc.exists) {
+          throw Exception('Список не найден');
+        }
+        final listData = listDoc.data()!;
+        final pendingInvitees = List<String>.from(listData['pendingInvitees'] ?? []);
+        pendingInvitees.remove(currentUserId);
+
+        transaction.update(listRef, {'pendingInvitees': pendingInvitees});
+        transaction.delete(invitationRef);
+      });
 
       final currentState = state;
       if (currentState is InvitationLoaded) {
         final updatedInvitations = currentState.invitations
             .where((inv) => inv.id != event.invitationId)
             .toList();
-        emit(InvitationLoaded(updatedInvitations, currentState.friendRequests));
+        emit(InvitationLoaded(updatedInvitations, currentState.friendRequests, currentState.listDetails));
       }
       emit(InvitationSuccess('Приглашение отклонено'));
     } catch (e) {
@@ -319,9 +359,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
   }
 
   Future<void> _onRemoveFriend(
-      RemoveFriend event,
-      Emitter<InvitationState> emit,
-      ) async {
+      RemoveFriend event, Emitter<InvitationState> emit) async {
     print('Handling RemoveFriend for requestId: ${event.requestId}');
     try {
       await _firestore.collection('friends').doc(event.requestId).delete();
@@ -332,7 +370,7 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         final updatedRequests = currentState.friendRequests
             .where((req) => req.id != event.requestId)
             .toList();
-        emit(InvitationLoaded(currentState.invitations, updatedRequests));
+        emit(InvitationLoaded(currentState.invitations, updatedRequests, currentState.listDetails));
       }
       emit(InvitationSuccess('Друг удалён'));
     } catch (e) {

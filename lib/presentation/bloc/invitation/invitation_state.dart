@@ -13,11 +13,12 @@ final class InvitationLoading extends InvitationState {}
 final class InvitationLoaded extends InvitationState {
   final List<Invitation> invitations;
   final List<FriendRequest> friendRequests;
+  final Map<String, Map<String, dynamic>> listDetails; // Добавляем данные списков
 
-  InvitationLoaded(this.invitations, this.friendRequests);
+  InvitationLoaded(this.invitations, this.friendRequests, [this.listDetails = const {}]);
 
   @override
-  List<Object?> get props => [invitations, friendRequests];
+  List<Object?> get props => [invitations, friendRequests, listDetails];
 }
 
 final class InvitationError extends InvitationState {

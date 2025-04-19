@@ -57,6 +57,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                     .where((req) => req.status == 'pending')
                     .toList();
                 final invitations = state.invitations;
+                final listDetails = state.listDetails;
 
                 return SingleChildScrollView(
                   child: Column(
@@ -90,8 +91,8 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                                   title: Text('Загрузка...'),
                                 );
                               }
-                              final userData =
-                              snapshot.data!.data() as Map<String, dynamic>;
+                              final userData = snapshot.data!.data()
+                              as Map<String, dynamic>;
                               final username = userData['username'] as String;
                               final name = userData['name'] as String;
                               return ListTile(
@@ -160,49 +161,35 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
                               final username = userData['username'] as String;
                               final name = userData['name'] as String;
 
-                              return FutureBuilder<DocumentSnapshot>(
-                                future: FirebaseFirestore.instance
-                                    .collection('lists')
-                                    .doc(listId)
-                                    .get(),
-                                builder: (context, listSnapshot) {
-                                  if (!listSnapshot.hasData) {
-                                    return const ListTile(
-                                      title: Text('Загрузка...'),
-                                    );
-                                  }
-                                  final listData = listSnapshot.data!.data()
-                                  as Map<String, dynamic>;
-                                  final listName = listData['name'] as String;
+                              // Используем данные списка из listDetails
+                              final listName = listDetails[listId]?['name'] as String? ?? 'Неизвестный список';
 
-                                  return ListTile(
-                                    title: Text('$username приглашает в список'),
-                                    subtitle: Text('Список: $listName\nИмя: $name'),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.check,
-                                              color: Colors.green),
-                                          onPressed: () {
-                                            GetIt.instance<InvitationBloc>().add(
-                                              AcceptInvitation(invitation.id),
-                                            );
-                                          },
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.close,
-                                              color: Colors.red),
-                                          onPressed: () {
-                                            GetIt.instance<InvitationBloc>().add(
-                                              RejectInvitation(invitation.id),
-                                            );
-                                          },
-                                        ),
-                                      ],
+                              return ListTile(
+                                title: Text('$username приглашает в список'),
+                                subtitle: Text('Список: $listName\nИмя: $name'),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.check,
+                                          color: Colors.green),
+                                      onPressed: () {
+                                        GetIt.instance<InvitationBloc>().add(
+                                          AcceptInvitation(invitation.id),
+                                        );
+                                      },
                                     ),
-                                  );
-                                },
+                                    IconButton(
+                                      icon: const Icon(Icons.close,
+                                          color: Colors.red),
+                                      onPressed: () {
+                                        GetIt.instance<InvitationBloc>().add(
+                                          RejectInvitation(invitation.id),
+                                        );
+                                      },
+                                    ),
+                                  ],
+                                ),
                               );
                             },
                           );
