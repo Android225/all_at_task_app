@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:all_at_task/presentation/widgets/app_text_field.dart';
 
 class ListEditScreen extends StatefulWidget {
   final TaskList list;
@@ -18,10 +19,15 @@ class ListEditScreen extends StatefulWidget {
 class _ListEditScreenState extends State<ListEditScreen> {
   late TextEditingController _nameController;
   late TextEditingController _descriptionController;
+  late TextEditingController _searchController;
   int? _selectedColor;
   bool _connectToMain = false;
   bool _isLoadingMainList = true;
   String? _mainListId;
+  List<Map<String, dynamic>> friends = [];
+  List<Map<String, dynamic>> searchResults = [];
+  List<String> selectedMemberIds = [];
+  bool isSearching = false;
 
   static const Map<int, String> colorNames = {
     0xFFFF0000: 'Red',
@@ -42,8 +48,13 @@ class _ListEditScreenState extends State<ListEditScreen> {
     super.initState();
     _nameController = TextEditingController(text: widget.list.name);
     _descriptionController = TextEditingController(text: widget.list.description);
+    _searchController = TextEditingController();
     _selectedColor = widget.list.color ?? availableColors[0];
     _loadMainList();
+    // Загружаем текущих участников
+    selectedMemberIds = widget.list.members.keys
+        .where((key) => key != widget.list.ownerId)
+        .toList();
   }
 
   Future<void> _loadMainList() async {
@@ -77,10 +88,96 @@ class _ListEditScreenState extends State<ListEditScreen> {
     }
   }
 
+  // Загрузка списка друзей
+  Future<void> loadFriends() async {
+    final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final acceptedFriendsSnapshot1 = await FirebaseFirestore.instance
+        .collection('friends')
+        .where('status', isEqualTo: 'accepted')
+        .where('userId1', isEqualTo: userId)
+        .get();
+    final acceptedFriendsSnapshot2 = await FirebaseFirestore.instance
+        .collection('friends')
+        .where('status', isEqualTo: 'accepted')
+        .where('userId2', isEqualTo: userId)
+        .get();
+
+    final friendIds = <String>{};
+    for (var doc in acceptedFriendsSnapshot1.docs) {
+      friendIds.add(doc.data()['userId2'] as String);
+    }
+    for (var doc in acceptedFriendsSnapshot2.docs) {
+      friendIds.add(doc.data()['userId1'] as String);
+    }
+
+    final friendProfiles = <Map<String, dynamic>>[];
+    for (var friendId in friendIds) {
+      if (friendId != userId && !selectedMemberIds.contains(friendId)) {
+        final profileDoc = await FirebaseFirestore.instance
+            .collection('public_profiles')
+            .doc(friendId)
+            .get();
+        if (profileDoc.exists) {
+          friendProfiles.add({
+            'uid': friendId,
+            'username': profileDoc.data()!['username'] as String,
+            'name': profileDoc.data()!['name'] as String,
+            'isFriend': true,
+          });
+        }
+      }
+    }
+    setState(() {
+      friends = friendProfiles;
+    });
+  }
+
+  // Поиск пользователей
+  void searchUsers(String query) async {
+    if (query.isEmpty) {
+      setState(() {
+        searchResults = [];
+        isSearching = false;
+      });
+      return;
+    }
+
+    final profilesSnapshot = await FirebaseFirestore.instance
+        .collection('public_profiles')
+        .get();
+    final results = profilesSnapshot.docs
+        .where((doc) {
+      final data = doc.data();
+      final username = data['username'] as String? ?? '';
+      final name = data['name'] as String? ?? '';
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      return doc.id != userId &&
+          !selectedMemberIds.contains(doc.id) &&
+          (username.toLowerCase().contains(query.toLowerCase()) ||
+              name.toLowerCase().contains(query.toLowerCase()));
+    })
+        .map((doc) {
+      final isFriend = friends.any((friend) => friend['uid'] == doc.id);
+      return {
+        'uid': doc.id,
+        'username': doc.data()['username'] as String,
+        'name': doc.data()['name'] as String,
+        'isFriend': isFriend,
+      };
+    })
+        .toList();
+
+    setState(() {
+      searchResults = results;
+      isSearching = true;
+    });
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _descriptionController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -174,6 +271,131 @@ class _ListEditScreenState extends State<ListEditScreen> {
                     },
                   ),
                 ],
+                const SizedBox(height: 16),
+                const Text(
+                  'Добавить участников',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                AppTextField(
+                  controller: _searchController,
+                  labelText: 'Поиск пользователей',
+                  onChanged: searchUsers,
+                ),
+                const SizedBox(height: 8),
+                if (friends.isNotEmpty && !isSearching) ...[
+                  const Text(
+                    'Друзья',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 150,
+                    child: ListView.builder(
+                      itemCount: friends.length,
+                      itemBuilder: (context, index) {
+                        final friend = friends[index];
+                        return ListTile(
+                          title: Text(friend['username']),
+                          subtitle: Text(friend['name']),
+                          onTap: () {
+                            setState(() {
+                              selectedMemberIds.add(friend['uid']);
+                              friends.removeAt(index);
+                              _searchController.clear();
+                              searchResults = [];
+                              isSearching = false;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                if (isSearching && searchResults.isNotEmpty) ...[
+                  const Text(
+                    'Результаты поиска',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 150,
+                    child: ListView.builder(
+                      itemCount: searchResults.length,
+                      itemBuilder: (context, index) {
+                        final user = searchResults[index];
+                        return ListTile(
+                          title: Text(user['username']),
+                          subtitle: Text(user['name']),
+                          trailing: user['isFriend']
+                              ? const Text(
+                            'Друг',
+                            style: TextStyle(color: Colors.green),
+                          )
+                              : null,
+                          onTap: () {
+                            setState(() {
+                              selectedMemberIds.add(user['uid']);
+                              searchResults.removeAt(index);
+                              friends
+                                  .removeWhere((f) => f['uid'] == user['uid']);
+                              _searchController.clear();
+                              searchResults = [];
+                              isSearching = false;
+                            });
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                if (selectedMemberIds.isNotEmpty) ...[
+                  const Text(
+                    'Участники',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 150,
+                    child: ListView.builder(
+                      itemCount: selectedMemberIds.length,
+                      itemBuilder: (context, index) {
+                        final memberId = selectedMemberIds[index];
+                        return FutureBuilder<DocumentSnapshot>(
+                          future: FirebaseFirestore.instance
+                              .collection('public_profiles')
+                              .doc(memberId)
+                              .get(),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData) {
+                              return const ListTile(
+                                title: Text('Загрузка...'),
+                              );
+                            }
+                            final userData =
+                            snapshot.data!.data() as Map<String, dynamic>;
+                            return ListTile(
+                              title: Text(userData['username'] as String),
+                              subtitle: Text(userData['name'] as String),
+                              trailing: IconButton(
+                                icon: const Icon(Icons.close, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    selectedMemberIds.remove(memberId);
+                                    loadFriends();
+                                    _searchController.clear();
+                                    searchResults = [];
+                                    isSearching = false;
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 BlocBuilder<ListBloc, ListState>(
                   builder: (context, state) {
@@ -182,6 +404,14 @@ class _ListEditScreenState extends State<ListEditScreen> {
                           ? null
                           : () {
                         if (_nameController.text.isNotEmpty) {
+                          final updatedMembers =
+                          Map<String, String>.from(widget.list.members);
+                          for (var memberId in selectedMemberIds) {
+                            if (!updatedMembers.containsKey(memberId)) {
+                              updatedMembers[memberId] = 'viewer';
+                            }
+                          }
+                          updatedMembers[userId] = 'admin';
                           final updatedList = widget.list.copyWith(
                             name: _nameController.text,
                             description:
@@ -189,13 +419,22 @@ class _ListEditScreenState extends State<ListEditScreen> {
                                 ? _descriptionController.text
                                 : null,
                             color: _selectedColor,
+                            members: updatedMembers,
                           );
                           context
                               .read<ListBloc>()
                               .add(UpdateList(updatedList));
-                          if (isOwner &&
-                              !isMainList &&
-                              _mainListId != null) {
+                          // Добавляем новых участников
+                          final newMembers = selectedMemberIds
+                              .where((id) =>
+                          !widget.list.members.containsKey(id))
+                              .toList();
+                          if (newMembers.isNotEmpty) {
+                            context.read<ListBloc>().add(
+                                AddMembersToList(
+                                    updatedList.id, newMembers));
+                          }
+                          if (isOwner && !isMainList && _mainListId != null) {
                             context.read<ListBloc>().add(
                               ConnectListToMain(
                                 widget.list.id,

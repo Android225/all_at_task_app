@@ -99,3 +99,13 @@ class ConnectListToMain extends ListEvent {
   @override
   List<Object> get props => [listId, connect];
 }
+
+class AddMembersToList extends ListEvent {
+  final String listId;
+  final List<String> memberIds;
+
+  const AddMembersToList(this.listId, this.memberIds);
+
+  @override
+  List<Object> get props => [listId, memberIds];
+}
