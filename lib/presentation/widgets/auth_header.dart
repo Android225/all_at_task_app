@@ -11,7 +11,7 @@ class AuthHeader extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'all-at_task',
+          'AllAtTask',
           style: Theme.of(context).textTheme.displayLarge,
         ),
         const SizedBox(height: 8),
@@ -20,7 +20,7 @@ class AuthHeader extends StatelessWidget {
           style: Theme.of(context).textTheme.headlineMedium,
         ),
         const SizedBox(height: 24),
-        Image.asset('assets/images/cat1.jpg', height: 200),
+        Image.asset('assets/images/logo.png', height: 200),
         const SizedBox(height: 32),
       ],
     );

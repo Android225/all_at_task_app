@@ -309,8 +309,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => Navigator.pushNamed(context, '/invitations'),
                 ),
                 ListTile(
+                  title: const Text('Календарь'),
+                  onTap: () => Navigator.pushNamed(context, '/calendar'),
+                ),
+                ListTile(
                   title: const Text('Настройки'),
-                  onTap: () {},
+                  onTap: () => Navigator.pushNamed(context, '/settings'),
                 ),
               ],
             ),
@@ -725,14 +729,9 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: (index) {
                 if (index == 0) {
                   print('HomeScreen: Navigating to ListHomeScreen');
-                  Navigator.push(
+                  Navigator.pushNamed(
                     navContext,
-                    MaterialPageRoute(
-                      builder: (_) => BlocProvider.value(
-                        value: navContext.read<ListBloc>(),
-                        child: ListHomeScreen(userId: userId),
-                      ),
-                    ),
+                    '/lists_home',
                   );
                 } else if (index == 1) {
                   final state = navContext.read<ListBloc>().state;
@@ -746,6 +745,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           content: Text('Сначала создайте или выберите список')),
                     );
                   }
+                } else if (index == 2) {
+                  print('HomeScreen: Navigating to CalendarScreen');
+                  Navigator.pushNamed(
+                    navContext,
+                    '/calendar',
+                  );
                 }
               },
             ),

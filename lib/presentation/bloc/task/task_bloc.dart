@@ -116,6 +116,54 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onUpdateTask(UpdateTask event, Emitter<TaskState> emit) async {
     try {
       print('TaskBloc: Updating task: ${event.task.id}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(TaskError('Пользователь не авторизован'));
+        return;
+      }
+
+      // Проверяем доступ к списку задачи
+      final listDoc = await FirebaseFirestore.instance
+          .collection('lists')
+          .doc(event.task.listId)
+          .get();
+      if (!listDoc.exists) {
+        emit(TaskError('Список задачи не найден'));
+        return;
+      }
+      final listData = listDoc.data();
+      if (listData == null) {
+        emit(TaskError('Данные списка не найдены'));
+        return;
+      }
+      final members = Map<String, String>.from(listData['members'] ?? {});
+      if (!members.containsKey(userId)) {
+        emit(TaskError('У вас нет доступа к списку этой задачи'));
+        return;
+      }
+
+      // Проверяем, что пользователь может обновить задачу
+      if (event.task.ownerId != userId && members[userId] != 'admin') {
+        // Если пользователь не владелец и не админ, проверяем, какие поля обновляются
+        final currentTaskDoc = await FirebaseFirestore.instance
+            .collection('tasks')
+            .doc(event.task.id)
+            .get();
+        if (!currentTaskDoc.exists) {
+          emit(TaskError('Задача не найдена'));
+          return;
+        }
+        final currentTask = Task.fromMap(currentTaskDoc.data()!..['id'] = currentTaskDoc.id);
+        final updatedFields = <String, bool>{};
+        if (event.task.isCompleted != currentTask.isCompleted) updatedFields['isCompleted'] = true;
+        if (event.task.isFavorite != currentTask.isFavorite) updatedFields['isFavorite'] = true;
+        if (event.task.deadline != currentTask.deadline) updatedFields['deadline'] = true;
+        if (updatedFields.keys.length != (event.task.toMap()..remove('id')).length) {
+          emit(TaskError('Вы можете обновлять только статус, избранное или дедлайн'));
+          return;
+        }
+      }
+
       // При обновлении задачи сохраняем текущий ownerUsername
       var taskToUpdate = event.task;
       if (taskToUpdate.ownerUsername == null) {
@@ -130,6 +178,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
           taskToUpdate = taskToUpdate.copyWith(ownerUsername: 'Неизвестный');
         }
       }
+
       await FirebaseFirestore.instance
           .collection('tasks')
           .doc(taskToUpdate.id)

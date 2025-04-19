@@ -2,6 +2,7 @@ import 'package:all_at_task/data/services/service_locator.dart';
 import 'package:all_at_task/presentation/bloc/list/list_bloc.dart';
 import 'package:all_at_task/presentation/bloc/task/task_bloc.dart';
 import 'package:all_at_task/presentation/screens/friends/friends_screen.dart';
+import 'package:all_at_task/presentation/screens/home/calendar_screen.dart';
 import 'package:all_at_task/presentation/screens/home/home_screen.dart';
 import 'package:all_at_task/presentation/screens/invitations/invitations_screen.dart';
 import 'package:all_at_task/presentation/screens/listss/list_edit_screen.dart';
@@ -11,6 +12,7 @@ import 'package:all_at_task/presentation/screens/auth/login_screen.dart';
 import 'package:all_at_task/presentation/screens/profile/profile_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
+import 'package:all_at_task/presentation/screens/settings/settings_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -64,6 +66,10 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const FriendsScreen());
       case '/invitations':
         return MaterialPageRoute(builder: (_) => const InvitationsScreen());
+      case '/calendar':
+        return MaterialPageRoute(builder: (_) => const CalendarScreen());
+      case '/settings':
+        return MaterialPageRoute(builder: (_) => const SettingsScreen());
       case '/forgot_password':
         return MaterialPageRoute(builder: (_) => ForgotPasswordScreen());
       case '/signup':
