@@ -73,12 +73,23 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       final listDetails = <String, Map<String, dynamic>>{};
       for (var doc in invitationsSnapshot.docs) {
         final invitation = Invitation.fromMap(doc.data());
-        final listDoc = await _firestore.collection('lists').doc(invitation.listId).get();
-        if (listDoc.exists) {
-          invitations.add(invitation);
-          listDetails[invitation.listId] = listDoc.data()!;
-        } else {
-          print('List ${invitation.listId} not found for invitation ${invitation.id}');
+        try {
+          final listDoc = await _firestore.collection('lists').doc(invitation.listId).get();
+          if (listDoc.exists) {
+            final listData = listDoc.data()!;
+            if (listData['ownerId'] == currentUserId ||
+                (listData['members']?.containsKey(currentUserId) ?? false) ||
+                (listData['pendingInvitees']?.contains(currentUserId) ?? false)) {
+              invitations.add(invitation);
+              listDetails[invitation.listId] = listData;
+            } else {
+              print('User $currentUserId has no permission for list ${invitation.listId}, skipping invitation ${invitation.id}');
+            }
+          } else {
+            print('List ${invitation.listId} not found for invitation ${invitation.id}, skipping');
+          }
+        } catch (e) {
+          print('Permission denied or error accessing list ${invitation.listId}: $e, skipping invitation ${invitation.id}');
         }
       }
 
@@ -112,7 +123,6 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       }
 
       print('Checking for existing friend request');
-      // Первый запрос: текущий пользователь как userId1
       final existingRequest1 = await _firestore
           .collection('friends')
           .where('userId1', isEqualTo: currentUserId)
@@ -120,7 +130,6 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .where('status', isEqualTo: 'pending')
           .get();
 
-      // Второй запрос: текущий пользователь как userId2
       final existingRequest2 = await _firestore
           .collection('friends')
           .where('userId2', isEqualTo: currentUserId)
@@ -128,7 +137,6 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
           .where('status', isEqualTo: 'pending')
           .get();
 
-      // Проверка результатов обоих запросов
       if (existingRequest1.docs.isNotEmpty || existingRequest2.docs.isNotEmpty) {
         print('Existing friend request found');
         emit(InvitationError('Запрос дружбы уже отправлен'));
@@ -227,19 +235,22 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
 
   Future<void> _onSendInvitation(
       SendInvitation event, Emitter<InvitationState> emit) async {
-    print('Handling SendInvitation for listId: ${event.listId}, inviteeId: ${event.inviteeId}');
+    print('Handling SendInvitation for listId: ${event.listId}, inviteeId: ${event.inviteeId}, currentUserId: $currentUserId');
     try {
       final listDoc = await _firestore.collection('lists').doc(event.listId).get();
       if (!listDoc.exists) {
+        print('List not found: ${event.listId}');
         emit(InvitationError('Список не найден'));
         return;
       }
+      print('List data: ${listDoc.data()}');
 
       final userDoc = await _firestore
           .collection('public_profiles')
           .doc(event.inviteeId)
           .get();
       if (!userDoc.exists) {
+        print('User not found: ${event.inviteeId}');
         emit(InvitationError('Пользователь не найден'));
         return;
       }
@@ -258,23 +269,26 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         final listRef = _firestore.collection('lists').doc(event.listId);
         final listDoc = await transaction.get(listRef);
         if (!listDoc.exists) {
-          throw Exception('Список не найден');
+          throw Exception('Список не найден в транзакции');
         }
         final listData = listDoc.data()!;
         final pendingInvitees = List<String>.from(listData['pendingInvitees'] ?? []);
+        print('Current pendingInvitees in transaction: $pendingInvitees');
         if (!pendingInvitees.contains(event.inviteeId)) {
           pendingInvitees.add(event.inviteeId);
+          print('Adding $event.inviteeId to pendingInvitees in transaction');
+        } else {
+          print('$event.inviteeId already in pendingInvitees, skipping');
         }
         transaction.update(listRef, {'pendingInvitees': pendingInvitees});
-        transaction.set(
-            _firestore.collection('invitations').doc(invitationId),
-            invitation.toMap());
+        transaction.set(_firestore.collection('invitations').doc(invitationId), invitation.toMap());
+        print('Transaction completed for invitation $invitationId');
       });
 
-      print('Invitation written successfully: $invitationId');
+      print('Invitation written successfully: $invitationId for list ${event.listId}, invitee ${event.inviteeId}');
       emit(InvitationSuccess('Приглашение отправлено'));
-    } catch (e) {
-      print('Error sending invitation: $e');
+    } catch (e, stackTrace) {
+      print('Error sending invitation: $e, Stack trace: $stackTrace');
       emit(InvitationError('Failed to send invitation: $e'));
     }
   }
@@ -305,30 +319,51 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
         }
         final listData = listDoc.data()!;
         final members = Map<String, String>.from(listData['members'] ?? {});
-        if (members.containsKey(currentUserId)) {
-          throw Exception('Вы уже являетесь участником этого списка');
-        }
-        members[currentUserId] = 'viewer';
-
+        print('Current members: $members'); // Лог для отладки
         final pendingInvitees = List<String>.from(listData['pendingInvitees'] ?? []);
-        pendingInvitees.remove(currentUserId);
 
-        transaction.update(listRef, {
-          'members': members,
-          'pendingInvitees': pendingInvitees,
-        });
+        if (members.containsKey(currentUserId)) {
+          print('User $currentUserId already in members, checking for sync issue');
+          if (pendingInvitees.contains(currentUserId)) {
+            pendingInvitees.remove(currentUserId);
+            transaction.update(listRef, {'pendingInvitees': pendingInvitees});
+            transaction.delete(invitationRef);
+            print('Removed from pendingInvitees due to sync issue');
+          }
+          // Всегда создаем запись в users/[userId]/lists, если ее нет
+          final userListRef = _firestore
+              .collection('users')
+              .doc(currentUserId)
+              .collection('lists')
+              .doc(invitation.listId);
+          final userListDoc = await transaction.get(userListRef);
+          if (!userListDoc.exists) {
+            transaction.set(userListRef, {
+              'listId': invitation.listId,
+              'addedAt': Timestamp.now(),
+            });
+            print('Added user $currentUserId to users/[userId]/lists for list ${invitation.listId}');
+          }
+          transaction.delete(invitationRef); // Удаляем приглашение
+        } else {
+          members[currentUserId] = 'viewer';
+          pendingInvitees.remove(currentUserId);
+          transaction.update(listRef, {
+            'members': members,
+            'pendingInvitees': pendingInvitees,
+          });
 
-        final userListRef = _firestore
-            .collection('users')
-            .doc(currentUserId)
-            .collection('lists')
-            .doc(invitation.listId);
-        transaction.set(userListRef, {
-          'listId': invitation.listId,
-          'addedAt': Timestamp.now(),
-        });
-
-        transaction.delete(invitationRef);
+          final userListRef = _firestore
+              .collection('users')
+              .doc(currentUserId)
+              .collection('lists')
+              .doc(invitation.listId);
+          transaction.set(userListRef, {
+            'listId': invitation.listId,
+            'addedAt': Timestamp.now(),
+          });
+          print('Added user $currentUserId to members and users/[userId]/lists');
+        }
       });
 
       final currentState = state;

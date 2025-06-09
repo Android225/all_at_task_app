@@ -11,6 +11,7 @@ class TaskList extends Equatable {
   final DateTime? lastUsed;
   final Map<String, String> members;
   final List<String> sharedLists;
+  final List<String> pendingInvitees; // Добавлено поле
 
   const TaskList({
     required this.id,
@@ -22,6 +23,7 @@ class TaskList extends Equatable {
     this.lastUsed,
     this.members = const {},
     this.sharedLists = const [],
+    this.pendingInvitees = const [], // Инициализация по умолчанию
   });
 
   TaskList copyWith({
@@ -34,6 +36,7 @@ class TaskList extends Equatable {
     DateTime? lastUsed,
     Map<String, String>? members,
     List<String>? sharedLists,
+    List<String>? pendingInvitees, // Добавлен параметр
   }) {
     return TaskList(
       id: id ?? this.id,
@@ -45,6 +48,7 @@ class TaskList extends Equatable {
       lastUsed: lastUsed ?? this.lastUsed,
       members: members ?? this.members,
       sharedLists: sharedLists ?? this.sharedLists,
+      pendingInvitees: pendingInvitees ?? this.pendingInvitees, // Добавлено
     );
   }
 
@@ -59,6 +63,7 @@ class TaskList extends Equatable {
       'lastUsed': lastUsed,
       'members': members,
       'sharedLists': sharedLists,
+      'pendingInvitees': pendingInvitees, // Добавлено в маппинг
     };
   }
 
@@ -73,6 +78,7 @@ class TaskList extends Equatable {
       lastUsed: map['lastUsed'] != null ? (map['lastUsed'] as Timestamp).toDate() : null,
       members: Map<String, String>.from(map['members'] ?? {}),
       sharedLists: List<String>.from(map['sharedLists'] ?? []),
+      pendingInvitees: List<String>.from(map['pendingInvitees'] ?? []), // Добавлено
     );
   }
 
@@ -87,5 +93,6 @@ class TaskList extends Equatable {
     lastUsed,
     members,
     sharedLists,
+    pendingInvitees, // Добавлено в props
   ];
 }

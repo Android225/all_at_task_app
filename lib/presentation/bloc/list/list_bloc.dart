@@ -169,16 +169,32 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         return;
       }
 
+      final updateData = <String, dynamic>{
+        if (event.list.name != null) 'name': event.list.name,
+        if (event.list.description != null) 'description': event.list.description,
+        if (event.list.color != null) 'color': event.list.color,
+        if (event.list.lastUsed != null) 'lastUsed': event.list.lastUsed,
+        if (event.list.sharedLists != null) 'sharedLists': event.list.sharedLists,
+        if (event.list.pendingInvitees != null) 'pendingInvitees': event.list.pendingInvitees,
+      };
+
       await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.list.id)
-          .update(event.list.toMap());
+          .update(updateData);
 
       if (state is ListLoaded) {
         final currentState = state as ListLoaded;
         final updatedLists = currentState.lists.map((list) {
           if (list.id == event.list.id) {
-            return event.list;
+            return list.copyWith(
+              name: event.list.name ?? list.name,
+              description: event.list.description ?? list.description,
+              color: event.list.color ?? list.color,
+              lastUsed: event.list.lastUsed ?? list.lastUsed,
+              sharedLists: event.list.sharedLists ?? list.sharedLists,
+              pendingInvitees: event.list.pendingInvitees ?? list.pendingInvitees,
+            );
           }
           return list;
         }).toList();
@@ -624,6 +640,7 @@ class ListBloc extends Bloc<ListEvent, ListState> {
           lastUsed: null,
           members: {userId: 'admin'},
           sharedLists: event.connect ? [event.listId] : [],
+          pendingInvitees: [], // Добавлено для совместимости
         );
         await FirebaseFirestore.instance
             .collection('lists')
@@ -659,7 +676,6 @@ class ListBloc extends Bloc<ListEvent, ListState> {
         mainList = mainList.copyWith(sharedLists: updatedSharedLists);
       }
 
-      // Полная перезагрузка списков после изменения
       add(LoadLists(userId: userId));
     } catch (e) {
       print('ListBloc: Error connecting list to main: $e');
@@ -670,15 +686,12 @@ class ListBloc extends Bloc<ListEvent, ListState> {
   Future<void> _onAddMembersToList(
       AddMembersToList event, Emitter<ListState> emit) async {
     try {
-      print(
-          'ListBloc: Adding members to list: ${event.listId}, members: ${event.memberIds}');
+      print('ListBloc: Adding members to list: ${event.listId}, members: ${event.memberIds}');
       final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
       if (userId.isEmpty) {
         emit(ListError('Пользователь не авторизован'));
         return;
       }
-
-      await FirebaseAuth.instance.currentUser?.reload();
 
       final listSnapshot = await FirebaseFirestore.instance
           .collection('lists')
@@ -696,26 +709,46 @@ class ListBloc extends Bloc<ListEvent, ListState> {
       print('ListBloc: List data: $listData');
       final list = TaskList.fromMap(listData..['id'] = listSnapshot.id);
 
-      for (var memberId in event.memberIds) {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('public_profiles')
-            .doc(memberId)
-            .get();
-        if (!userDoc.exists) {
-          emit(ListError('Пользователь $memberId не найден'));
-          return;
-        }
-
-        if (list.members.containsKey(memberId)) {
-          print('ListBloc: User $memberId is already a member of list ${event.listId}');
-          continue;
-        }
-
-        print('ListBloc: Sending invitation to $memberId for list ${event.listId}');
-        GetIt.instance<InvitationBloc>().add(SendInvitation(event.listId, memberId));
+      if (list.ownerId != userId) {
+        emit(ListError('Только владелец может добавлять участников'));
+        return;
       }
 
-      emit(state);
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final listRef = FirebaseFirestore.instance.collection('lists').doc(event.listId);
+        final listDoc = await transaction.get(listRef);
+        final currentData = listDoc.data()!;
+        final currentMembers = Map<String, String>.from(currentData['members'] ?? {});
+        final pendingInvitees = List<String>.from(currentData['pendingInvitees'] ?? []);
+
+        for (var memberId in event.memberIds) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('public_profiles')
+              .doc(memberId)
+              .get();
+          if (!userDoc.exists) {
+            throw Exception('Пользователь $memberId не найден');
+          }
+
+          print('ListBloc: Checking membership for $memberId in ${event.listId}: ${currentMembers.containsKey(memberId)}');
+          if (currentMembers.containsKey(memberId)) {
+            print('ListBloc: User $memberId is already a member of list ${event.listId}');
+            continue;
+          }
+
+          if (!pendingInvitees.contains(memberId)) {
+            pendingInvitees.add(memberId);
+            print('ListBloc: Adding $memberId to pendingInvitees');
+            final invitationBloc = GetIt.I<InvitationBloc>();
+            invitationBloc.add(SendInvitation(event.listId, memberId)); // Исправлен вызов
+          }
+        }
+
+        transaction.update(listRef, {'pendingInvitees': pendingInvitees});
+      });
+
+      print('ListBloc: Members added successfully to list ${event.listId}');
+      add(LoadLists(userId: userId));
     } catch (e) {
       print('ListBloc: Error adding members to list: $e');
       emit(ListError('Не удалось добавить участников: $e'));
