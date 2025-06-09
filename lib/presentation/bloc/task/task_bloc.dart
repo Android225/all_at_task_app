@@ -202,10 +202,40 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
   Future<void> _onDeleteTask(DeleteTask event, Emitter<TaskState> emit) async {
     try {
       print('TaskBloc: Deleting task: ${event.taskId}');
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        emit(TaskError('Пользователь не авторизован'));
+        return;
+      }
+
+      // Получаем данные задачи для проверки владельца
+      final taskSnapshot = await FirebaseFirestore.instance
+          .collection('tasks')
+          .doc(event.taskId)
+          .get();
+      if (!taskSnapshot.exists) {
+        emit(TaskError('Задача не найдена'));
+        return;
+      }
+
+      final taskData = taskSnapshot.data();
+      if (taskData == null) {
+        emit(TaskError('Данные задачи не найдены'));
+        return;
+      }
+
+      final task = Task.fromMap(taskData..['id'] = taskSnapshot.id);
+      if (task.ownerId != userId) {
+        emit(TaskError('Нельзя удалить чужую задачу'));
+        return;
+      }
+
+      // Если пользователь — владелец, выполняем удаление
       await FirebaseFirestore.instance
           .collection('tasks')
           .doc(event.taskId)
           .delete();
+
       if (state is TaskLoaded) {
         final currentState = state as TaskLoaded;
         final updatedTasks =

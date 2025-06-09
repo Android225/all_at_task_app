@@ -20,40 +20,9 @@ class TaskList extends Equatable {
     this.color,
     required this.createdAt,
     this.lastUsed,
-    required this.members,
-    required this.sharedLists,
+    this.members = const {},
+    this.sharedLists = const [],
   });
-
-  factory TaskList.fromMap(Map<String, dynamic> map) {
-    if (!map.containsKey('members') || !map.containsKey('sharedLists')) {
-      print('TaskList.fromMap: Missing fields in map: $map');
-    }
-    return TaskList(
-      id: map['id'] ?? '',
-      name: map['name'] ?? '',
-      ownerId: map['ownerId'] ?? '',
-      description: map['description'],
-      color: map['color'],
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastUsed: (map['lastUsed'] as Timestamp?)?.toDate(),
-      members: Map<String, String>.from(map['members'] ?? {}),
-      sharedLists: List<String>.from(map['sharedLists'] ?? []),
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'ownerId': ownerId,
-      'description': description,
-      'color': color,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'lastUsed': lastUsed != null ? Timestamp.fromDate(lastUsed!) : null,
-      'members': members,
-      'sharedLists': sharedLists,
-    };
-  }
 
   TaskList copyWith({
     String? id,
@@ -76,6 +45,34 @@ class TaskList extends Equatable {
       lastUsed: lastUsed ?? this.lastUsed,
       members: members ?? this.members,
       sharedLists: sharedLists ?? this.sharedLists,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'ownerId': ownerId,
+      'description': description,
+      'color': color,
+      'createdAt': createdAt,
+      'lastUsed': lastUsed,
+      'members': members,
+      'sharedLists': sharedLists,
+    };
+  }
+
+  static TaskList fromMap(Map<String, dynamic> map) {
+    return TaskList(
+      id: map['id'] as String,
+      name: map['name'] as String,
+      ownerId: map['ownerId'] as String,
+      description: map['description'] as String?,
+      color: map['color'] as int?,
+      createdAt: (map['createdAt'] as Timestamp).toDate(),
+      lastUsed: map['lastUsed'] != null ? (map['lastUsed'] as Timestamp).toDate() : null,
+      members: Map<String, String>.from(map['members'] ?? {}),
+      sharedLists: List<String>.from(map['sharedLists'] ?? []),
     );
   }
 

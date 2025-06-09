@@ -202,7 +202,11 @@ class _ListEditScreenState extends State<ListEditScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Список успешно обновлён')),
             );
-            Navigator.pop(context);
+            Navigator.pushNamedAndRemoveUntil(
+              context,
+              '/home',
+                  (Route<dynamic> route) => false,
+            );
           }
         },
         child: _isLoadingMainList

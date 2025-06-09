@@ -46,12 +46,12 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
   @override
   void initState() {
     super.initState();
-    print('ListHomeScreen: Loading lists for user ${widget.userId}');
+    print('ListHomeScreen: Loading lists for user ${widget.userId} at 08:00 PM PDT, June 08, 2025');
     context.read<ListBloc>().add(LoadLists(userId: widget.userId));
     _searchSubject
         .debounceTime(const Duration(milliseconds: 500))
         .listen((query) async {
-      print('ListHomeScreen: Search query: $query');
+      print('ListHomeScreen: Search query: $query at 08:00 PM PDT, June 08, 2025');
       if (query.isNotEmpty) {
         setState(() {
           _isSearching = true;
@@ -63,7 +63,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
             _isSearching = false;
           });
         } catch (e) {
-          print('ListHomeScreen: Search error: $e');
+          print('ListHomeScreen: Search error: $e at 08:00 PM PDT, June 08, 2025');
           if (mounted) {
             setState(() {
               _isSearching = false;
@@ -96,7 +96,6 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
     final lowercaseQuery = query.toLowerCase();
     final results = <SearchResult>[];
 
-    // Получаем списки из ListBloc
     final listState = context.read<ListBloc>().state;
     if (listState is! ListLoaded) return [];
 
@@ -113,7 +112,6 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
       }
     }
 
-    // Поиск задач
     final listIds = lists.map((list) => list.id).toList();
     if (listIds.isEmpty) return results;
 
@@ -121,11 +119,9 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
     for (var snapshot in snapshots) {
       for (var doc in snapshot.docs) {
         final taskData = doc.data() as Map<String, dynamic>?;
-        // Проверяем, что taskData не null и содержит необходимые поля
         if (taskData == null) continue;
         final taskTitle = taskData['title'] as String?;
         final listId = taskData['listId'] as String?;
-        // Пропускаем, если title или listId отсутствуют
         if (taskTitle == null || listId == null) continue;
         if (taskTitle.toLowerCase().contains(lowercaseQuery)) {
           final list = lists.firstWhere((l) => l.id == listId);
@@ -191,7 +187,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
       0xFFFFFF00, // Yellow
     ];
 
-    selectedColor = availableColors[0]; // Цвет по умолчанию
+    selectedColor = availableColors[0];
 
     Future<List<Map<String, dynamic>>> loadFriends() async {
       if (_cachedFriends != null) {
@@ -528,7 +524,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                         members: {widget.userId: 'admin'},
                         sharedLists: [],
                       );
-                      print('ListHomeScreen: Adding list: ${newList.name}');
+                      print('ListHomeScreen: Adding list: ${newList.name} at 08:00 PM PDT, June 08, 2025');
 
                       try {
                         final listBloc = parentContext.read<ListBloc>();
@@ -618,14 +614,14 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
         children: [
           BlocConsumer<ListBloc, ListState>(
             listener: (context, state) {
-              if (state is ListError) {
+              if (state is ListError && state.message != 'Пользователь не авторизован') {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text(state.message)),
                 );
               }
             },
             builder: (context, state) {
-              print('ListHomeScreen: Current state: $state');
+              print('ListHomeScreen: Current state: $state at 08:00 PM PDT, June 08, 2025');
               if (_isSearchVisible) {
                 return Container(
                   color: Colors.black54,
@@ -662,7 +658,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                 ),
                                 onTap: () {
                                   print(
-                                      'ListHomeScreen: Selected search result: ${result.id}, isTask: ${result.isTask}');
+                                      'ListHomeScreen: Selected search result: ${result.id}, isTask: ${result.isTask} at 08:00 PM PDT, June 08, 2025');
                                   context
                                       .read<ListBloc>()
                                       .add(UpdateListLastUsed(result.listId));
@@ -692,7 +688,7 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
               if (state is ListLoading) {
                 return const Center(child: CircularProgressIndicator());
               } else if (state is ListLoaded) {
-                print('ListHomeScreen: Loaded ${state.lists.length} lists');
+                print('ListHomeScreen: Loaded ${state.lists.length} lists at 08:00 PM PDT, June 08, 2025');
                 if (state.lists.isEmpty) {
                   return const Center(child: Text('Нет списков'));
                 }
@@ -743,7 +739,8 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                     : const Icon(Icons.list),
                                 title: Text(
                                   list.name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 subtitle: Text(
                                   list.description ?? 'Без описания',
@@ -754,9 +751,10 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
+                                      icon:
+                                      const Icon(Icons.edit, color: Colors.blue),
                                       onPressed: () {
-                                        print('ListHomeScreen: Editing list: ${list.id}');
+                                        print('ListHomeScreen: Editing list: ${list.id} at 08:00 PM PDT, June 08, 2025');
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
@@ -769,9 +767,10 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                       },
                                     ),
                                     IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      icon:
+                                      const Icon(Icons.delete, color: Colors.red),
                                       onPressed: () {
-                                        print('ListHomeScreen: Deleting list: ${list.id}');
+                                        print('ListHomeScreen: Deleting list: ${list.id} at 08:00 PM PDT, June 08, 2025');
                                         context
                                             .read<ListBloc>()
                                             .add(DeleteList(list.id));
@@ -780,7 +779,8 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                   ],
                                 ),
                                 onTap: () {
-                                  print('ListHomeScreen: Selecting list: ${list.id}');
+                                  print('ListHomeScreen: Selecting list: ${list.id} at 08:00 PM PDT, June 08, 2025');
+                                  context.read<ListBloc>().add(UpdateListLastUsed(list.id));
                                   context.read<ListBloc>().add(SelectList(list.id));
                                   Navigator.pushNamed(context, '/home',
                                       arguments: list.id);
@@ -824,7 +824,8 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                     : const Icon(Icons.list),
                                 title: Text(
                                   list.name,
-                                  style: const TextStyle(fontWeight: FontWeight.bold),
+                                  style:
+                                  const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 subtitle: FutureBuilder<DocumentSnapshot>(
                                   future: FirebaseFirestore.instance
@@ -848,10 +849,11 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: const Icon(Icons.edit, color: Colors.blue),
+                                      icon:
+                                      const Icon(Icons.edit, color: Colors.blue),
                                       onPressed: () {
                                         print(
-                                            'ListHomeScreen: Editing shared list: ${list.id}');
+                                            'ListHomeScreen: Editing shared list: ${list.id} at 08:00 PM PDT, June 08, 2025');
                                         Navigator.push(
                                           context,
                                           MaterialPageRoute(
@@ -867,7 +869,8 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                                 ),
                                 onTap: () {
                                   print(
-                                      'ListHomeScreen: Selecting shared list: ${list.id}');
+                                      'ListHomeScreen: Selecting shared list: ${list.id} at 08:00 PM PDT, June 08, 2025');
+                                  context.read<ListBloc>().add(UpdateListLastUsed(list.id));
                                   context.read<ListBloc>().add(SelectList(list.id));
                                   Navigator.pushNamed(context, '/home',
                                       arguments: list.id);
@@ -881,35 +884,49 @@ class _ListHomeScreenState extends State<ListHomeScreen> {
                   ),
                 );
               } else if (state is ListError) {
-                print('ListHomeScreen: Error: ${state.message}');
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text('Произошла ошибка: ${state.message}'),
-                      if (state.message.contains('permission-denied'))
-                        const Text(
-                          'Проверьте права доступа. Возможно, вам нужно обновить сессию.',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => context
-                            .read<ListBloc>()
-                            .add(LoadLists(userId: widget.userId)),
-                        child: const Text('Повторить'),
-                      ),
-                    ],
-                  ),
-                );
+                return Center(child: Text(state.message == 'Пользователь не авторизован' ? 'Пожалуйста, войдите в аккаунт' : state.message));
               }
-              return const Center(child: Text('Нет списков'));
+              return const Center(child: Text('Неизвестное состояние'));
             },
           ),
+          if (_isSearchVisible)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AppTextField(
+                        controller: _searchController,
+                        labelText: 'Поиск списков и задач',
+                        onChanged: _search,
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () {
+                        setState(() {
+                          _isSearchVisible = false;
+                          _searchController.clear();
+                          _searchResults = [];
+                          _isSearching = false;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _showCreateListDialog(context),
+        onPressed: () {
+          _showCreateListDialog(context);
+        },
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.add),
       ),
