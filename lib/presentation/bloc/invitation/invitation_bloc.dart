@@ -112,14 +112,24 @@ class InvitationBloc extends Bloc<InvitationEvent, InvitationState> {
       }
 
       print('Checking for existing friend request');
-      final existingRequest = await _firestore
+      // Первый запрос: текущий пользователь как userId1
+      final existingRequest1 = await _firestore
           .collection('friends')
           .where('userId1', isEqualTo: currentUserId)
           .where('userId2', isEqualTo: event.userId)
           .where('status', isEqualTo: 'pending')
           .get();
 
-      if (existingRequest.docs.isNotEmpty) {
+      // Второй запрос: текущий пользователь как userId2
+      final existingRequest2 = await _firestore
+          .collection('friends')
+          .where('userId2', isEqualTo: currentUserId)
+          .where('userId1', isEqualTo: event.userId)
+          .where('status', isEqualTo: 'pending')
+          .get();
+
+      // Проверка результатов обоих запросов
+      if (existingRequest1.docs.isNotEmpty || existingRequest2.docs.isNotEmpty) {
         print('Existing friend request found');
         emit(InvitationError('Запрос дружбы уже отправлен'));
         return;

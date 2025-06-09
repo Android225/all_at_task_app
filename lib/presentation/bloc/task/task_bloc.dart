@@ -13,6 +13,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     on<AddTask>(_onAddTask);
     on<UpdateTask>(_onUpdateTask);
     on<DeleteTask>(_onDeleteTask);
+    on<LoadFavoriteTasks>(_onLoadFavoriteTasks); // Новый обработчик
   }
 
   Future<void> _onLoadTasks(LoadTasks event, Emitter<TaskState> emit) async {
@@ -36,7 +37,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         final data = doc.data()..['id'] = doc.id;
         var task = Task.fromMap(data);
 
-        // Загружаем username владельца задачи
         if (task.ownerId.isNotEmpty) {
           final profileDoc = await FirebaseFirestore.instance
               .collection('public_profiles')
@@ -72,7 +72,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         return;
       }
 
-      // Загружаем username владельца
       String ownerUsername = 'Неизвестный';
       final profileDoc = await FirebaseFirestore.instance
           .collection('public_profiles')
@@ -87,7 +86,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         description: event.description,
         listId: event.listId,
         ownerId: event.ownerId,
-        ownerUsername: ownerUsername, // Сохраняем username
+        ownerUsername: ownerUsername,
         deadline: event.deadline,
         priority: event.priority,
         assignedTo: event.assignedTo,
@@ -122,7 +121,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         return;
       }
 
-      // Проверяем доступ к списку задачи
       final listDoc = await FirebaseFirestore.instance
           .collection('lists')
           .doc(event.task.listId)
@@ -142,9 +140,7 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         return;
       }
 
-      // Проверяем, что пользователь может обновить задачу
       if (event.task.ownerId != userId && members[userId] != 'admin') {
-        // Если пользователь не владелец и не админ, проверяем, какие поля обновляются
         final currentTaskDoc = await FirebaseFirestore.instance
             .collection('tasks')
             .doc(event.task.id)
@@ -164,7 +160,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         }
       }
 
-      // При обновлении задачи сохраняем текущий ownerUsername
       var taskToUpdate = event.task;
       if (taskToUpdate.ownerUsername == null) {
         final profileDoc = await FirebaseFirestore.instance
@@ -208,7 +203,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         return;
       }
 
-      // Получаем данные задачи для проверки владельца
       final taskSnapshot = await FirebaseFirestore.instance
           .collection('tasks')
           .doc(event.taskId)
@@ -230,7 +224,6 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
         return;
       }
 
-      // Если пользователь — владелец, выполняем удаление
       await FirebaseFirestore.instance
           .collection('tasks')
           .doc(event.taskId)
@@ -248,6 +241,54 @@ class TaskBloc extends Bloc<TaskEvent, TaskState> {
     } catch (e) {
       print('TaskBloc: Error deleting task: $e');
       emit(TaskError('Не удалось удалить задачу: $e'));
+    }
+  }
+
+  Future<void> _onLoadFavoriteTasks(LoadFavoriteTasks event, Emitter<TaskState> emit) async {
+    emit(TaskLoading());
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (userId.isEmpty) {
+        print('TaskBloc: User not authenticated');
+        emit(TaskError('Пользователь не авторизован'));
+        return;
+      }
+
+      print('TaskBloc: Loading favorite tasks for user $userId');
+      final tasksSnapshot = await FirebaseFirestore.instance
+          .collection('tasks')
+          .where('ownerId', isEqualTo: userId)
+          .where('isFavorite', isEqualTo: true)
+          .get();
+      final tasks = <Task>[];
+
+      for (var doc in tasksSnapshot.docs) {
+        final data = doc.data()..['id'] = doc.id;
+        var task = Task.fromMap(data);
+
+        if (task.ownerId.isNotEmpty) {
+          final profileDoc = await FirebaseFirestore.instance
+              .collection('public_profiles')
+              .doc(task.ownerId)
+              .get();
+          if (profileDoc.exists) {
+            final username = profileDoc.data()?['username'] as String? ?? 'Неизвестный';
+            task = task.copyWith(ownerUsername: username);
+          } else {
+            task = task.copyWith(ownerUsername: 'Неизвестный');
+          }
+        } else {
+          task = task.copyWith(ownerUsername: 'Неизвестный');
+        }
+
+        tasks.add(task);
+      }
+
+      print('TaskBloc: Loaded ${tasks.length} favorite tasks');
+      emit(TaskLoaded(tasks: tasks, userId: userId));
+    } catch (e) {
+      print('TaskBloc: Error loading favorite tasks: $e');
+      emit(TaskError('Не удалось загрузить избранные задачи: $e'));
     }
   }
 }

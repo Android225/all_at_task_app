@@ -13,6 +13,7 @@ import 'package:all_at_task/presentation/screens/profile/profile_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/forgot_password_screen.dart';
 import 'package:all_at_task/presentation/screens/auth/signup_screen.dart';
 import 'package:all_at_task/presentation/screens/settings/settings_screen.dart';
+import 'package:all_at_task/presentation/screens/favorites/favorites_screen.dart'; // Новый импорт
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -68,6 +69,20 @@ class AppRouter {
         return MaterialPageRoute(builder: (_) => const InvitationsScreen());
       case '/calendar':
         return MaterialPageRoute(builder: (_) => const CalendarScreen());
+      case '/favorites': // Новый маршрут
+        final userId = FirebaseAuth.instance.currentUser?.uid ?? '';
+        return MaterialPageRoute(
+          builder: (_) => MultiBlocProvider(
+            providers: [
+              BlocProvider(create: (_) => getIt<TaskBloc>()),
+              BlocProvider(
+                create: (_) => getIt<ListBloc>()
+                  ..add(LoadLists(userId: userId)),
+              ),
+            ],
+            child: const FavoritesScreen(),
+          ),
+        );
       case '/settings':
         return MaterialPageRoute(builder: (_) => const SettingsScreen());
       case '/forgot_password':

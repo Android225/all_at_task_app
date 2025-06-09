@@ -71,3 +71,10 @@ class DeleteTask extends TaskEvent {
   @override
   List<Object?> get props => [taskId, listId];
 }
+
+class LoadFavoriteTasks extends TaskEvent {
+  const LoadFavoriteTasks();
+
+  @override
+  List<Object?> get props => [];
+}
